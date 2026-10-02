@@ -77,6 +77,7 @@
       user-select: none !important;
       -webkit-user-select: none !important;
       pointer-events: auto !important;
+      -webkit-app-region: no-drag !important;
     }
 
     .agy-pill-bar:hover {
@@ -88,9 +89,11 @@
 
     #agy-quota-capsule-root.floating-mode {
       position: fixed !important;
-      top: 5px !important;
-      right: 145px !important;
+      top: 6px !important;
+      right: 150px !important;
       z-index: 2147483647 !important;
+      -webkit-app-region: no-drag !important;
+      pointer-events: auto !important;
     }
 
     #agy-quota-capsule-root.embedded-mode {
@@ -99,6 +102,8 @@
       align-items: center !important;
       margin: 0 8px !important;
       z-index: 1000 !important;
+      -webkit-app-region: no-drag !important;
+      pointer-events: auto !important;
     }
 
     .agy-dot {
@@ -528,6 +533,17 @@
     if (e.key === 'Escape' && overlay.classList.contains('open')) {
       closeModal();
     }
+    if (e.altKey && (e.key === 'q' || e.key === 'Q')) {
+      if (overlay.classList.contains('open')) {
+        closeModal();
+      } else {
+        openModal();
+      }
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R')) {
+      fetchAuthorityData();
+      fetchOfflineData();
+    }
   });
 
   let isFullscreen = false;
@@ -837,8 +853,20 @@
   }
 
   // 10. 初始化并自动维持挂载
+  function ensureMounted() {
+    if (!document.body) return;
+    if (!document.getElementById('agy-quota-capsule-root')) {
+      document.body.appendChild(capsuleRoot);
+    }
+    if (!document.getElementById('agy-inpage-modal-overlay')) {
+      document.body.appendChild(modalOverlay);
+    }
+  }
+
+  ensureMounted();
   fetchAuthorityData();
   fetchOfflineData();
+  setInterval(ensureMounted, 1000);
   setInterval(fetchAuthorityData, 3000);
   setInterval(tryEmbedIntoToolbar, 1000);
 
