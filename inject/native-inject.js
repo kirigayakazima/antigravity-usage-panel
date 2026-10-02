@@ -84,23 +84,15 @@
       box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08) !important;
     }
 
-    #agy-quota-capsule-root.floating-mode {
+    #agy-quota-capsule-root {
       position: fixed !important;
-      top: 6px !important;
-      right: 150px !important;
+      top: 5px !important;
+      right: 250px !important;
       z-index: 2147483647 !important;
       -webkit-app-region: no-drag !important;
       pointer-events: auto !important;
-    }
-
-    #agy-quota-capsule-root.embedded-mode {
-      position: relative !important;
       display: inline-flex !important;
       align-items: center !important;
-      margin: 0 8px !important;
-      z-index: 1000 !important;
-      -webkit-app-region: no-drag !important;
-      pointer-events: auto !important;
     }
 
     .agy-dot {
@@ -220,7 +212,6 @@
   // 2. 构建纯白胶囊 DOM 根节点
   const capsuleRoot = document.createElement('div');
   capsuleRoot.id = 'agy-quota-capsule-root';
-  capsuleRoot.className = 'floating-mode';
   capsuleRoot.innerHTML = `
     <div id="agy-pill-bar" class="agy-pill-bar" title="点击在当前页面直接展开全屏配额与用量大屏">
       <div id="agy-dot" class="agy-dot"></div>
@@ -459,42 +450,28 @@
     mountDOM();
   }
 
-  // 4. 智能嵌入图 3 所示的顶栏工具栏
-  function tryEmbedIntoToolbar() {
-    const candidateBars = document.querySelectorAll('div, header');
-    let targetContainer = null;
-    let insertBeforeEl = null;
-
-    for (const el of candidateBars) {
-      const buttons = el.querySelectorAll('button');
-      if (buttons.length >= 2 && el.clientHeight >= 24 && el.clientHeight <= 48) {
-        for (const btn of buttons) {
-          const title = (btn.getAttribute('title') || btn.getAttribute('aria-label') || '').toLowerCase();
-          const text = btn.textContent.trim();
-          if (text === '+' || title.includes('new') || title.includes('add') || title.includes('split') || title.includes('tab')) {
-            targetContainer = el;
-            insertBeforeEl = btn;
-            break;
-          }
-        }
-        if (targetContainer) break;
-      }
-    }
-
+  // 4. 智能测量顶栏按钮并动态调整悬浮位置
+  function updateCapsulePosition() {
     const cRoot = document.getElementById('agy-quota-capsule-root');
     if (!cRoot) return;
 
-    if (targetContainer && insertBeforeEl && targetContainer.contains(insertBeforeEl)) {
-      if (cRoot.parentElement !== targetContainer) {
-        cRoot.className = 'embedded-mode';
-        targetContainer.insertBefore(cRoot, insertBeforeEl);
+    // 默认避开系统原生控制按钮 (Windows 三键宽约 140px)
+    let rightOffset = 150;
+    const buttons = document.querySelectorAll('button, [role="button"], a');
+    for (const btn of buttons) {
+      if (btn.closest && btn.closest('#agy-quota-capsule-root, #agy-inpage-modal-overlay')) continue;
+      const rect = btn.getBoundingClientRect();
+      // 位于顶栏 (top < 45) 且位于屏幕右半侧 (left > window.innerWidth / 2)
+      if (rect.top >= 0 && rect.top < 45 && rect.left > window.innerWidth / 2 && rect.width > 0) {
+        const fromRight = window.innerWidth - rect.left;
+        if (fromRight > rightOffset && fromRight < 450) {
+          rightOffset = fromRight;
+        }
       }
-    } else {
-      if (cRoot.parentElement !== document.body) {
-        document.body.appendChild(cRoot);
-      }
-      cRoot.className = 'floating-mode';
     }
+
+    cRoot.style.right = (rightOffset + 12) + 'px';
+    cRoot.style.top = '5px';
   }
 
   // 5. 交互事件绑定
@@ -852,19 +829,28 @@
   // 10. 初始化并自动维持挂载
   function ensureMounted() {
     if (!document.body) return;
-    if (!document.getElementById('agy-quota-capsule-root')) {
+    const cRoot = document.getElementById('agy-quota-capsule-root');
+    if (!cRoot) {
       document.body.appendChild(capsuleRoot);
+    } else if (cRoot.parentElement !== document.body) {
+      document.body.appendChild(cRoot);
     }
-    if (!document.getElementById('agy-inpage-modal-overlay')) {
+
+    const mOverlay = document.getElementById('agy-inpage-modal-overlay');
+    if (!mOverlay) {
       document.body.appendChild(modalOverlay);
+    } else if (mOverlay.parentElement !== document.body) {
+      document.body.appendChild(mOverlay);
     }
+
+    updateCapsulePosition();
   }
 
   ensureMounted();
   fetchAuthorityData();
   fetchOfflineData();
-  setInterval(ensureMounted, 1000);
+  setInterval(ensureMounted, 400);
   setInterval(fetchAuthorityData, 3000);
-  setInterval(tryEmbedIntoToolbar, 1000);
+  window.addEventListener('resize', updateCapsulePosition);
 
 })();
