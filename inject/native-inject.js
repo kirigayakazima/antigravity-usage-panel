@@ -97,6 +97,49 @@
       box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08) !important;
     }
 
+    /* 胶囊动态轮播视窗 (高度与胶囊完全对齐，杜绝任何文字切边) */
+    .agy-ticker-viewport {
+      position: relative !important;
+      height: 28px !important;
+      min-width: 140px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      overflow: hidden !important;
+    }
+
+    .agy-ticker-item {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      height: 28px !important;
+      line-height: 28px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 5px !important;
+      white-space: nowrap !important;
+      transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease !important;
+    }
+
+    .agy-ticker-item.active {
+      transform: translateY(0) !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+    }
+
+    .agy-ticker-item.leave-up {
+      transform: translateY(-16px) !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
+    .agy-ticker-item.enter-down {
+      transform: translateY(16px) !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+
     .agy-dot {
       width: 7px !important;
       height: 7px !important;
@@ -439,30 +482,28 @@
   `;
   document.head ? document.head.appendChild(styleEl) : document.addEventListener('DOMContentLoaded', () => document.head.appendChild(styleEl));
 
-  // 3. 构建微晶胶囊 DOM 根节点 (支持 2.5s 平滑垂直翻滚轮播: 5h余量 vs 今日用量)
+  // 3. 构建微晶胶囊 DOM 根节点 (支持 2.2s 平滑垂直翻滚轮播: 5h余量 vs 今日用量)
   const capsuleRoot = document.createElement('div');
   capsuleRoot.id = 'agy-quota-capsule-root';
   capsuleRoot.innerHTML = `
-    <div id="agy-pill-bar" class="agy-pill-bar" title="点击在当前页面直接展开全屏配额与用量大屏 (每2.5s动态轮播5h余量与今日总用量)">
+    <div id="agy-pill-bar" class="agy-pill-bar" title="点击在当前页面直接展开全屏配额与用量大屏 (每2.2s动态轮播5h余量与今日总用量)">
       <div id="agy-dot" class="agy-dot"></div>
       
-      <!-- 动态滚动视窗 -->
-      <div class="agy-ticker-viewport" style="position: relative; height: 18px; overflow: hidden; display: inline-flex; align-items: center;">
-        <div id="agy-ticker-track" style="display: flex; flex-direction: column; transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);">
-          <!-- 视窗 1: 5H 剩余量 (精确显示 6.6% 对应的剩余约 7.3M，绝非总量) -->
-          <div class="agy-ticker-item" style="height: 18px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;">
-            <span style="color: var(--au-text-muted); font-size: 11px">5h余:</span>
-            <b id="agy-pill-5h" style="color: var(--au-emerald); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">--%</b>
-            <span style="opacity: 0.3">·</span>
-            <b id="agy-pill-5h-tokens" style="color: var(--au-brand); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">~--</b>
-          </div>
-          <!-- 视窗 2: 今日总消耗量 (显示今日累计 Token + 命中率) -->
-          <div class="agy-ticker-item" style="height: 18px; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;">
-            <span style="color: var(--au-text-muted); font-size: 11px">今日用量:</span>
-            <b id="agy-pill-today-tokens" style="color: var(--au-purple); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">--</b>
-            <span style="opacity: 0.3">·</span>
-            <span id="agy-pill-today-hit" style="color: var(--au-emerald); font-size: 11px; font-weight: 600">--命中</span>
-          </div>
+      <!-- 动态平滑轮播视窗 (严格垂直居中，绝无切边) -->
+      <div class="agy-ticker-viewport">
+        <!-- 视窗 1: 5H 剩余量 (如 2.2% 对应的真实剩余约 2.3M) -->
+        <div id="agy-ticker-item-5h" class="agy-ticker-item active">
+          <span style="color: var(--au-text-muted); font-size: 11px">5h余:</span>
+          <b id="agy-pill-5h" style="color: var(--au-emerald); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">--%</b>
+          <span style="opacity: 0.3">·</span>
+          <b id="agy-pill-5h-tokens" style="color: var(--au-brand); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">~--</b>
+        </div>
+        <!-- 视窗 2: 今日总消耗量 (如 今日: 1.06亿 · 85.6%命中) -->
+        <div id="agy-ticker-item-today" class="agy-ticker-item enter-down">
+          <span style="color: var(--au-text-muted); font-size: 11px">今日用量:</span>
+          <b id="agy-pill-today-tokens" style="color: var(--au-purple); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">--</b>
+          <span style="opacity: 0.3">·</span>
+          <span id="agy-pill-today-hit" style="color: var(--au-emerald); font-size: 11px; font-weight: 600">--命中</span>
         </div>
       </div>
 
@@ -1023,7 +1064,7 @@
     renderResetsTab();
   }
 
-  // 胶囊动态垂直翻滚轮播 (2.5 秒交替平滑滚动: 5h余量 vs 今日用量)
+  // 胶囊动态垂直平滑轮播 (2.2 秒交替平滑翻滚: 5h余量 vs 今日用量)
   let tickerIndex = 0;
   let tickerPaused = false;
   let tickerInterval = null;
@@ -1038,23 +1079,39 @@
 
     tickerInterval = setInterval(() => {
       if (tickerPaused) return;
-      const track = capsuleRoot.querySelector('#agy-ticker-track');
-      if (!track) return;
+      const item5h = capsuleRoot.querySelector('#agy-ticker-item-5h');
+      const itemToday = capsuleRoot.querySelector('#agy-ticker-item-today');
+      if (!item5h || !itemToday) return;
+
       tickerIndex = (tickerIndex + 1) % 2;
-      track.style.transform = tickerIndex === 0 ? 'translateY(0px)' : 'translateY(-18px)';
-    }, 2500);
+      if (tickerIndex === 0) {
+        // 切回 5h 剩余 (item5h 居中淡入, itemToday 上浮淡出)
+        item5h.className = 'agy-ticker-item active';
+        itemToday.className = 'agy-ticker-item leave-up';
+      } else {
+        // 切到今日用量 (itemToday 居中淡入, item5h 上浮淡出)
+        item5h.className = 'agy-ticker-item leave-up';
+        itemToday.className = 'agy-ticker-item active';
+      }
+    }, 2200);
   }
 
   function updateCapsuleDisplay() {
-    let min5hRemaining = 1;
+    let min5hRemaining = null;
     let minCountdown = null;
 
     if (RAW_QUOTA && RAW_QUOTA.groups) {
       for (const g of RAW_QUOTA.groups) {
         for (const b of (g.buckets || [])) {
           const v = num(b.remainingFraction);
-          if (b.bucketId === 'gemini-5h' || b.displayName?.includes('Five Hour')) {
-            min5hRemaining = v;
+          const bId = String(b.bucketId || '').toLowerCase();
+          const dName = String(b.displayName || '').toLowerCase();
+          const is5h = bId === 'gemini-5h' || bId.includes('5h') || dName.includes('five hour') || b.window === '5h';
+          if (is5h) {
+            // 严谨锁定实际产生消耗的 5h 剩余配额，杜绝被未使用的 3p-5h (100%) 错误覆盖
+            if (min5hRemaining === null || v < min5hRemaining) {
+              min5hRemaining = v;
+            }
           }
           if (b.resetTime) {
             const rDate = new Date(b.resetTime);
@@ -1066,8 +1123,9 @@
         }
       }
     }
+    if (min5hRemaining === null) min5hRemaining = 1;
 
-    // 1. 视图一：5h 剩余比例与对应真实剩余 Token (例如 6.6% -> ~7.3M)
+    // 1. 视图一：5h 剩余比例与对应真实剩余 Token (例如 2.2% -> ~2.3M, 6.6% -> ~7.3M)
     const proj5h = calcQuotaProjection(min5hRemaining, 'gemini-5h');
     const el5hPct = capsuleRoot.querySelector('#agy-pill-5h');
     if (el5hPct) {
@@ -1079,7 +1137,7 @@
       el5hTok.textContent = `~${proj5h.remTokStr}`;
     }
 
-    // 2. 视图二：今日总用量与缓存命中率 (例如 今日: 1.04亿 · 85.4%命中)
+    // 2. 视图二：今日总用量与缓存命中率 (例如 今日: 1.06亿 · 85.6%命中)
     const todayStr = new Date().toISOString().slice(0, 10);
     const todayItem = RAW_DAILY.find(d => d.date === todayStr);
     let todayTotalTok = 0;
