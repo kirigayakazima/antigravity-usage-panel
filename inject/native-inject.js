@@ -4,10 +4,7 @@
 // =========================================================================
 
 (function initAntigravityQuotaInjection() {
-  if (window.__ANTIGRAVITY_QUOTA_INJECTED_V4_1__) return;
-  window.__ANTIGRAVITY_QUOTA_INJECTED_V4_1__ = true;
-
-  console.log('[Antigravity Quota HUD v4.1] Pure Web Engine Initializing...');
+  console.log('[Antigravity Quota HUD v4.1] Pure Web Engine Initializing in Main World...');
 
   // 清除任何旧版遗留的黑卡片和旧 DOM 节点
   try {
