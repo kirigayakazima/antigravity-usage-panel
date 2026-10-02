@@ -3,6 +3,7 @@ import { readdirSync, readFileSync, statSync, mkdtempSync, writeFileSync } from 
 import { join } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { scanConversations } from './lib/conversations.js';
+import { HistoryStore } from './lib/history.js';
 
 process.on('uncaughtException', (err) => {
   try {
@@ -18,6 +19,11 @@ process.on('unhandledRejection', (err) => {
 
 const PORT = 19388;
 const home = homedir();
+const historyDir = join(home, '.dsh', 'antigravity-usage');
+const historyStore = new HistoryStore(historyDir, 180);
+try {
+  historyStore.load();
+} catch (e) {}
 const appData = process.env.APPDATA || join(home, 'AppData', 'Roaming');
 const localAppData = process.env.LOCALAPPDATA || join(home, 'AppData', 'Local');
 
@@ -153,6 +159,22 @@ async function getQuota() {
       groups: data.groups || data.response?.groups || []
     };
     lastQuotaTime = now;
+
+    try {
+      historyStore.append({
+        ok: true,
+        ts: now,
+        port,
+        groups: (data.groups || data.response?.groups || []).map(g => ({
+          name: g.displayName || '',
+          buckets: (g.buckets || []).map(b => ({
+            id: b.bucketId || b.displayName,
+            remainingFraction: b.remainingFraction
+          }))
+        }))
+      });
+    } catch (e) {}
+
     return lastQuotaData;
   } catch (err) {
     cachedPort = null;
@@ -219,6 +241,18 @@ const server = http.createServer(async (req, res) => {
       const conv = await getConversations();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(conv));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+  if (url.pathname === '/api/history') {
+    try {
+      const range = url.searchParams.get('range') || '24h';
+      const history = historyStore.query(range, 400);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(history));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));

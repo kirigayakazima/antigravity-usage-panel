@@ -1,10 +1,10 @@
 // =========================================================================
-// Antigravity Native UI Quota Capsule & In-Page Modal (v4.3 Professional)
-// 对齐 DSH (antigravity-usage) 官方设计语言，100% 动态数据绑定，丰富交互筛选与热力图
+// Antigravity Native UI Quota Capsule & In-Page Modal (v4.4 High-End Edition)
+// 对齐 DSH (antigravity-usage) 官方设计语言，100% 动态数据绑定，具备完整时序走势与月份热力图
 // =========================================================================
 
 (function initAntigravityQuotaInjection() {
-  console.log('[Antigravity Quota HUD v4.3] Initializing Professional Web Engine in Main World...');
+  console.log('[Antigravity Quota HUD v4.4] Initializing High-End Monitor in Main World...');
 
   // 1. 清理旧实例
   try {
@@ -100,30 +100,33 @@
     .agy-dot {
       width: 7px !important;
       height: 7px !important;
-      border-radius: 9999px !important;
-      background-color: var(--au-emerald) !important;
-      box-shadow: 0 0 6px var(--au-emerald) !important;
+      border-radius: 50% !important;
+      background: #10b981 !important;
+      box-shadow: 0 0 6px #10b981 !important;
+      flex-shrink: 0 !important;
       animation: agy-pulse 2s infinite !important;
     }
 
     @keyframes agy-pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
+      0% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.5; transform: scale(0.85); }
+      100% { opacity: 1; transform: scale(1); }
     }
 
-    /* 沉浸式全屏模态大屏 */
+    /* 全屏内嵌模态遮罩与居中卡片 */
     #agy-inpage-modal-overlay {
       position: fixed !important;
       inset: 0 !important;
-      background: rgba(0, 0, 0, 0.45) !important;
+      background: rgba(0, 0, 0, 0.6) !important;
       backdrop-filter: blur(8px) !important;
       -webkit-backdrop-filter: blur(8px) !important;
       z-index: 2147483646 !important;
-      display: none;
+      display: none !important;
       align-items: center !important;
       justify-content: center !important;
-      opacity: 0;
-      transition: opacity 0.2s ease !important;
+      opacity: 0 !important;
+      transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      pointer-events: auto !important;
       font-family: var(--au-font) !important;
     }
 
@@ -133,19 +136,25 @@
     }
 
     .au-modal-window {
-      width: 92% !important;
-      max-width: 980px !important;
-      height: 88% !important;
-      max-height: 780px !important;
+      width: 90vw !important;
+      max-width: 1040px !important;
+      height: 85vh !important;
+      max-height: 860px !important;
       background: var(--au-bg) !important;
       border: 1px solid var(--au-border-l1) !important;
       border-radius: 14px !important;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25) !important;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4) !important;
       display: flex !important;
       flex-direction: column !important;
       overflow: hidden !important;
       color: var(--au-text-main) !important;
-      transition: all 0.2s ease !important;
+      animation: au-modal-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+      transition: width 0.2s ease, height 0.2s ease, border-radius 0.2s ease !important;
+    }
+
+    @keyframes au-modal-pop {
+      from { transform: scale(0.97) translateY(8px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
     }
 
     .au-modal-window.fullscreen {
@@ -388,8 +397,8 @@
     .au-num { text-align: center; }
     .au-trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-    /* 热力图网格 */
-    .au-heat-wrap { overflow-x: auto; padding-bottom: 6px; }
+    /* 热力图网格与标尺 */
+    .au-heat-wrap { overflow-x: auto; padding: 4px 0 10px; }
     .au-heat {
       display: grid;
       grid-auto-flow: column;
@@ -402,7 +411,8 @@
       height: 11px;
       border-radius: 2px;
       background: rgba(128, 128, 128, 0.16);
-      transition: transform 0.1s ease;
+      transition: transform 0.12s ease;
+      cursor: pointer;
     }
     .au-cell:hover {
       transform: scale(1.35);
@@ -416,7 +426,7 @@
       gap: 12px;
       flex-wrap: wrap;
       font-size: 11px;
-      margin-top: 8px;
+      margin-top: 10px;
       color: var(--au-text-muted);
       align-items: center;
     }
@@ -451,64 +461,60 @@
     <div class="au-modal-window" id="agy-modal-win">
       <!-- 头部 -->
       <div class="au-head">
-        <div class="au-title">
-          <span>🛰️ 反重力额度 / 用量监控面板</span>
-          <span id="modal-acct-tier" class="au-ico-pct" style="background: #64748b; display:none">PRO</span>
-          <span id="modal-acct-plan" class="au-ico-pct" style="background: #3b82f6; display:none">Plan</span>
-          <span id="modal-live-status" style="font-size: 11.5px; font-weight: 600; color: var(--au-emerald)">● 实时</span>
-        </div>
-        <div class="au-spacer"></div>
-        <div style="display: flex; align-items: center; gap: 6px">
-          <button id="modal-btn-refresh" class="au-btn" title="立即刷新数据">↻ 刷新</button>
-          <button id="modal-btn-fullscreen" class="au-btn" title="全屏切换">⛶ 展开</button>
-          <button id="modal-btn-close" class="au-btn" style="font-weight: bold" title="关闭 (Esc)">✕</button>
+        <h2 class="au-title">
+          <span>⚡</span>
+          <span>Google 反重力配额与用量监控</span>
+        </h2>
+        <span id="ls-status-pill" class="au-ico-pct" style="background: #10b981; margin-left: 8px">● 实时在线</span>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+          <button id="modal-btn-fullscreen" class="au-btn" title="切换全屏/窗口">⛶ 展开</button>
+          <button id="modal-btn-refresh" class="au-btn" title="强制刷新全部数据">↻ 刷新</button>
+          <button id="modal-btn-close" class="au-btn" style="font-weight: 700" title="关闭窗口 (Esc)">✕</button>
         </div>
       </div>
 
-      <!-- KPI 概览卡片行 + 时间范围筛选 -->
+      <!-- 顶部 KPI 宏观指标卡片 -->
       <div class="au-kpi-bar">
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <div style="font-size: 11px; font-weight: 600; color: var(--au-text-muted)">📊 用量宏观指标概览</div>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
           <div class="au-btn-group" id="kpi-range-group">
             <button class="au-btn" data-days="1">今天</button>
-            <button class="au-btn" data-days="7">7天</button>
-            <button class="au-btn" data-days="14">14天</button>
-            <button class="au-btn" data-days="30">近30天</button>
-            <button class="au-btn" data-days="90">近90天</button>
+            <button class="au-btn" data-days="7">7 天</button>
+            <button class="au-btn" data-days="14">14 天</button>
+            <button class="au-btn" data-days="30">近 30 天</button>
+            <button class="au-btn" data-days="90">近 90 天</button>
             <button class="au-btn on" data-days="0">全部</button>
           </div>
+          <span style="font-size: 11px; color: var(--au-text-muted)" id="kpi-range-hint">统计自反重力离线会话库</span>
         </div>
 
         <div class="au-kpis">
           <div class="au-kpi">
-            <div class="au-kpi-label">总 Token</div>
-            <div class="au-kpi-value" id="kpi-tok-total">--</div>
-            <div class="au-kpi-sub" id="kpi-tok-sub">未命中 -- · 缓存命中 -- · 输出 --</div>
-            <div class="au-stack" id="kpi-tok-stack">
-              <i style="width: 20%; background: #16a34a"></i>
-              <i style="width: 65%; background: #3b82f6"></i>
-              <i style="width: 15%; background: #8b5cf6"></i>
+            <div class="au-kpi-label">总消耗 Token</div>
+            <div class="au-kpi-value" id="kpi-tokens" style="color: var(--au-brand)">--</div>
+            <div class="au-stack">
+              <i id="kpi-bar-in" style="background: var(--au-brand); width: 0%" title="未命中输入"></i>
+              <i id="kpi-bar-cache" style="background: var(--au-emerald); width: 0%" title="缓存读取"></i>
+              <i id="kpi-bar-out" style="background: var(--au-purple); width: 0%" title="模型输出"></i>
             </div>
+            <div class="au-kpi-sub" id="kpi-tokens-sub">命中率: --</div>
           </div>
+
           <div class="au-kpi">
-            <div class="au-kpi-label">缓存命中率</div>
-            <div class="au-kpi-value" style="color: var(--au-emerald)" id="kpi-hit-rate">--%</div>
-            <div class="au-kpi-sub" id="kpi-hit-sub">命中 -- / 未命中 --</div>
-          </div>
-          <div class="au-kpi">
-            <div class="au-kpi-label">模型调用次数</div>
-            <div class="au-kpi-value" style="color: var(--au-brand)" id="kpi-gens">--</div>
-            <div class="au-kpi-sub" id="kpi-gens-sub">统计范围内有活动的会话</div>
-          </div>
-          <div class="au-kpi">
-            <div class="au-kpi-label">输出 Token</div>
-            <div class="au-kpi-value" style="color: var(--au-purple)" id="kpi-output">--</div>
-            <div class="au-kpi-sub" id="kpi-out-sub">思考 -- · 回复 --</div>
-          </div>
-          <div class="au-kpi">
-            <div class="au-kpi-label">会话总数</div>
+            <div class="au-kpi-label">离线会话数</div>
             <div class="au-kpi-value" id="kpi-convs">--</div>
             <div class="au-kpi-sub" id="kpi-convs-sub">共 -- 步生成动作</div>
+          </div>
+
+          <div class="au-kpi">
+            <div class="au-kpi-label">模型调用次数</div>
+            <div class="au-kpi-value" id="kpi-calls">--</div>
+            <div class="au-kpi-sub" id="kpi-calls-sub">平均每会话 -- 步</div>
+          </div>
+
+          <div class="au-kpi">
+            <div class="au-kpi-label">活跃天数统计</div>
+            <div class="au-kpi-value" id="kpi-days">--</div>
+            <div class="au-kpi-sub" id="kpi-days-sub">最近活跃: --</div>
           </div>
         </div>
       </div>
@@ -565,15 +571,19 @@
               <button class="au-btn" data-range="30d">30 天</button>
               <button class="au-btn" data-range="all">全部</button>
             </div>
+            <span class="au-spacer"></span>
+            <span style="font-size: 11px; color: var(--au-text-muted)" id="trend-summary-info">正在读取历史采样...</span>
           </div>
           <div class="au-card">
-            <div class="au-card-title">📈 剩余额度随时间变化走势</div>
-            <div class="au-card-desc">反重力官方接口只给「剩余额度百分比」，下降即消耗，上升即窗口滚动恢复或周期重置。</div>
-            <div id="trend-chart-container" style="min-height: 220px; display: flex; align-items: center; justify-content: center">
-              <div style="color: var(--au-text-muted); font-size: 12px; text-align: center; padding: 30px">
-                ⏳ 正在持续累积采样数据点（后台守护常驻运行将自动绘制时序曲线）
-              </div>
+            <div class="au-card-title">📈 剩余额度随时间变化走势 (动态时序图)</div>
+            <div class="au-card-desc">反重力官方接口只给「剩余额度百分比」，下降即模型生成消耗，上升即周期重置或滚动窗口恢复。</div>
+            <div id="trend-chart-container" style="min-height: 230px; position: relative;">
+              <!-- 动态 SVG 曲线渲染区 -->
             </div>
+          </div>
+          <div class="au-card" id="trend-buckets-card" style="display: none;">
+            <div class="au-card-title">📊 额度桶窗口消耗与恢复汇总</div>
+            <div class="au-grid" id="trend-buckets-summary-grid"></div>
           </div>
         </div>
 
@@ -592,9 +602,24 @@
           <div class="au-card">
             <div class="au-card-title">🗓️ 182 天日历热力图 (GitHub / DSH 翠绿调色)</div>
             <div class="au-card-desc" id="heat-metric-desc">来自反重力本地会话库（离线可读），反重力关着也照常有数据。</div>
+            
+            <!-- GitHub 风格：左侧星期 + 顶部月份 + 7行格子矩阵 -->
             <div class="au-heat-wrap">
-              <div id="au-heat-grid" class="au-heat"></div>
+              <div style="display: flex; gap: 8px; align-items: flex-start; width: max-content;">
+                <!-- 星期标签列（一、三、五） -->
+                <div class="au-heat-weekdays" style="position: relative; width: 16px; height: 95px; margin-top: 18px; flex-shrink: 0; user-select: none;">
+                  <span style="position: absolute; top: 0px; font-size: 10px; color: var(--au-text-muted); line-height: 11px;">一</span>
+                  <span style="position: absolute; top: 28px; font-size: 10px; color: var(--au-text-muted); line-height: 11px;">三</span>
+                  <span style="position: absolute; top: 56px; font-size: 10px; color: var(--au-text-muted); line-height: 11px;">五</span>
+                </div>
+                <!-- 右侧：月份标尺 + 网格 -->
+                <div style="display: flex; flex-direction: column;">
+                  <div id="au-heat-months" style="position: relative; height: 18px; width: 100%; user-select: none;"></div>
+                  <div id="au-heat-grid" class="au-heat"></div>
+                </div>
+              </div>
             </div>
+
             <div class="au-legend">
               <span>少</span>
               <span class="au-cell" style="background: rgba(128,128,128,.16); display:inline-block"></span>
@@ -615,17 +640,17 @@
               <thead>
                 <tr>
                   <th>日期</th>
-                  <th class="au-num">会话数</th>
+                  <th class="au-num">会话</th>
                   <th class="au-num">步数</th>
-                  <th class="au-num">生成次数</th>
-                  <th class="au-num">输入 Token</th>
+                  <th class="au-num">调用</th>
+                  <th class="au-num">未命中输入</th>
                   <th class="au-num">输出 Token</th>
                   <th class="au-num">缓存读取</th>
-                  <th class="au-num">命中率</th>
+                  <th class="au-num">缓存命中率</th>
                 </tr>
               </thead>
               <tbody id="summary-table-body">
-                <tr><td colspan="8" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在读取数据...</td></tr>
+                <tr><td colspan="8" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在扫描逐日用量...</td></tr>
               </tbody>
             </table>
           </div>
@@ -634,19 +659,20 @@
         <!-- 5. 重置 Tab -->
         <div id="tab-resets" class="au-tab-pane">
           <div class="au-card">
-            <div class="au-card-title">🔄 各额度桶规格与重置周期</div>
+            <div class="au-card-title">⏳ 额度桶重置监控</div>
             <table class="au-table">
               <thead>
                 <tr>
-                  <th>额度桶</th>
+                  <th>配额桶</th>
                   <th class="au-num">当前剩余</th>
-                  <th class="au-num">已消耗</th>
-                  <th class="au-num">重置时间</th>
-                  <th class="au-num">状态</th>
+                  <th class="au-num">已用比例</th>
+                  <th class="au-num">重置倒计时</th>
+                  <th class="au-num">预计重置时间</th>
+                  <th class="au-num">窗口类型</th>
                 </tr>
               </thead>
               <tbody id="resets-table-body">
-                <tr><td colspan="5" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在读取额度桶...</td></tr>
+                <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在读取配额桶状态...</td></tr>
               </tbody>
             </table>
           </div>
@@ -654,15 +680,27 @@
 
         <!-- 6. 会话 Tab -->
         <div id="tab-conv" class="au-tab-pane">
-          <div class="au-card" id="conv-model-card">
-            <div class="au-card-title">🧠 各模型使用统计</div>
+          <div class="au-toolbar">
+            <input type="text" id="conv-search-input" class="au-input" placeholder="🔍 搜索会话标题、摘要或工作区...">
+            <span id="conv-ws-badge" class="au-btn on" style="display: none; font-size: 11px; cursor: pointer;"></span>
+            <span class="au-spacer"></span>
+            <span style="font-size: 11px; color: var(--au-text-muted)" id="conv-count-info">共 -- 个会话</span>
+          </div>
+
+          <div class="au-card">
+            <div class="au-card-title">📁 活跃工作区筛选</div>
+            <div id="conv-workspaces-pills" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px;"></div>
+          </div>
+
+          <div class="au-card">
+            <div class="au-card-title">🤖 各模型用量汇总</div>
             <table class="au-table">
               <thead>
                 <tr>
                   <th>模型</th>
-                  <th class="au-num">生成</th>
-                  <th class="au-num">输入</th>
-                  <th class="au-num">输出</th>
+                  <th class="au-num">调用次数</th>
+                  <th class="au-num">输入 Token</th>
+                  <th class="au-num">输出 Token</th>
                   <th class="au-num">缓存读取</th>
                   <th class="au-num">命中率</th>
                 </tr>
@@ -671,277 +709,435 @@
             </table>
           </div>
 
-          <div class="au-card" id="conv-ws-card">
-            <div class="au-card-title">📁 按工作区（点击一行可快捷筛选）</div>
+          <div class="au-card">
+            <div class="au-card-title">💬 会话明细列表</div>
             <table class="au-table">
               <thead>
                 <tr>
+                  <th>会话标题 / 摘要</th>
                   <th>工作区</th>
-                  <th class="au-num">会话</th>
+                  <th>使用模型</th>
                   <th class="au-num">步数</th>
-                  <th class="au-num">输入</th>
-                  <th class="au-num">输出</th>
+                  <th class="au-num">调用</th>
+                  <th class="au-num">输入 Token</th>
+                  <th class="au-num">输出 Token</th>
+                  <th class="au-num">缓存读取</th>
+                  <th class="au-num">命中率</th>
+                  <th>最后修改</th>
                 </tr>
               </thead>
-              <tbody id="conv-ws-tbody"></tbody>
+              <tbody id="conv-list-tbody">
+                <tr><td colspan="10" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在读取本地 SQLite 数据库...</td></tr>
+              </tbody>
             </table>
-          </div>
-
-          <div class="au-card">
-            <div class="au-toolbar">
-              <input id="conv-search-input" class="au-input" placeholder="搜索会话标题 / 工作区 / 模型…" />
-              <button id="conv-ws-badge" class="au-btn on" style="display:none"></button>
-              <span class="au-spacer"></span>
-              <span style="font-size: 11px; color: var(--au-text-muted)" id="conv-count-info">0 个会话</span>
-            </div>
-            <div style="overflow-x: auto; max-height: 480px; overflow-y: auto">
-              <table class="au-table">
-                <thead>
-                  <tr>
-                    <th>会话标题</th>
-                    <th>工作区</th>
-                    <th>模型</th>
-                    <th class="au-num">步数</th>
-                    <th class="au-num">生成</th>
-                    <th class="au-num">输入</th>
-                    <th class="au-num">输出</th>
-                    <th class="au-num">缓存读取</th>
-                    <th class="au-num">命中率</th>
-                    <th>最后活动</th>
-                  </tr>
-                </thead>
-                <tbody id="conv-list-tbody">
-                  <tr><td colspan="10" style="text-align:center; padding: 20px; color: var(--au-text-muted)">正在加载会话列表...</td></tr>
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
       </div>
     </div>
   `;
 
-  // 5. 状态存储与全局变量
+  // 5. 数据状态中心
   let RAW_QUOTA = null;
   let RAW_CONVERSATIONS = [];
   let RAW_DAILY = [];
   let RAW_MODELS = [];
   let RAW_WORKSPACES = [];
+  let RAW_HISTORY = null;
+
   let SELECTED_DAYS = 0;
   let SELECTED_HEAT_METRIC = 'sessions';
   let SELECTED_WS_FILTER = '';
   let SEARCH_QUERY = '';
+  let SELECTED_TREND_RANGE = '24h';
 
-  // 辅助函数
-  function num(v) { return (typeof v === 'number' && Number.isFinite(v)) ? v : 0; }
-  function fmtNum(v) {
+  // 6. 辅助计算工具
+  const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  const fmtNum = (v) => {
     const n = num(v);
-    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿';
     if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+    if (n >= 1e4) return (n / 1e4).toFixed(1) + 'W';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
     return String(Math.round(n));
-  }
-  function fmtFull(v) { return num(v).toLocaleString('en-US'); }
-  function pct(v, digits = 1) {
-    if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
-    return (v * 100).toFixed(digits) + '%';
-  }
-  function remainingColor(v) {
-    if (v <= 0.15) return '#dc2626';
-    if (v <= 0.4) return '#ea580c';
-    if (v <= 0.7) return '#ca8a04';
-    return '#16a34a';
-  }
-  function fmtTime(ms) {
-    if (!ms) return '—';
-    const d = typeof ms === 'number' ? new Date(ms) : new Date(Date.parse(ms));
-    if (isNaN(d.getTime())) return String(ms);
-    return d.toLocaleString('zh-CN', { hour12: false });
-  }
-  function fmtCountdown(isoStr) {
-    if (!isoStr) return '—';
-    const diff = new Date(isoStr).getTime() - Date.now();
-    if (diff <= 0) return '即将重置';
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    if (h > 24) return Math.floor(h / 24) + '天' + (h % 24) + '小时';
-    if (h > 0) return h + '小时' + m + '分';
-    return m + '分' + s + '秒';
-  }
-  function shortWs(w) {
-    if (!w) return '—';
-    const parts = w.replace(/\\\\/g, '/').split('/').filter(x => x);
-    return parts.length <= 2 ? w : '…/' + parts.slice(-2).join('/');
-  }
+  };
+  const fmtFull = (v) => num(v).toLocaleString('zh-CN');
+  const pct = (v, digits = 1) => (num(v) * 100).toFixed(digits) + '%';
+  const shortWs = (ws) => {
+    if (!ws) return '全局';
+    const s = String(ws).replace(/\\/g, '/');
+    const parts = s.split('/').filter(Boolean);
+    return parts.slice(-2).join('/') || s;
+  };
 
-  // 6. 数据渲染核心逻辑
+  const fmtCountdown = (ms) => {
+    if (typeof ms !== 'number' || ms <= 0) return '已到期';
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  const fmtTime = (ts) => {
+    if (!ts) return '—';
+    const d = new Date(ts);
+    return d.toLocaleString('zh-CN', {
+      month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    });
+  };
+
+  const remainingColor = (v) => {
+    if (v >= 0.6) return 'var(--au-emerald)';
+    if (v >= 0.25) return 'var(--au-orange)';
+    return 'var(--au-red)';
+  };
+
+  // 7. 渲染函数集合
   function updateKPIs() {
-    let cutoff = '';
-    if (SELECTED_DAYS > 0) {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() - (SELECTED_DAYS - 1));
-      cutoff = d.toISOString().slice(0, 10);
+    const cutoffMs = SELECTED_DAYS === 0 ? 0 : Date.now() - SELECTED_DAYS * 86400000;
+    const cutoffDate = SELECTED_DAYS === 0 ? '' : new Date(cutoffMs).toISOString().slice(0, 10);
+
+    let filtered = RAW_DAILY;
+    if (cutoffDate) {
+      filtered = RAW_DAILY.filter(d => d.date >= cutoffDate);
     }
 
-    let tokIn = 0, tokOut = 0, tokCache = 0, tokThinking = 0, tokResp = 0;
-    let sessions = 0, steps = 0, genCalls = 0;
+    let input = 0, output = 0, cacheRead = 0;
+    let sessions = 0, steps = 0, calls = 0;
 
-    for (const d of RAW_DAILY) {
-      if (cutoff && d.date < cutoff) continue;
+    for (const d of filtered) {
       sessions += num(d.sessions);
       steps += num(d.steps);
-      genCalls += num(d.genCalls);
-      const t = d.tokens || {};
-      tokIn += num(t.input);
-      tokOut += num(t.output);
-      tokCache += num(t.cacheRead);
-      tokThinking += num(t.thinking);
-      tokResp += num(t.response);
+      calls += num(d.genCalls);
+      if (d.tokens) {
+        input += num(d.tokens.input);
+        output += num(d.tokens.output);
+        cacheRead += num(d.tokens.cacheRead);
+      }
     }
 
-    const totalPrompt = tokIn + tokCache;
-    const totalAll = totalPrompt + tokOut;
-    const hitRateVal = totalPrompt > 0 ? (tokCache / totalPrompt) : 0;
+    const totalIn = input + cacheRead;
+    const totalAll = totalIn + output;
+    const hitRate = totalIn > 0 ? (cacheRead / totalIn) : 0;
 
-    modalOverlay.querySelector('#kpi-tok-total').textContent = fmtNum(totalAll);
-    modalOverlay.querySelector('#kpi-tok-sub').textContent = `未命中 ${fmtNum(tokIn)} · 缓存命中 ${fmtNum(tokCache)} · 输出 ${fmtNum(tokOut)}`;
+    modalOverlay.querySelector('#kpi-tokens').textContent = fmtNum(totalAll);
+    modalOverlay.querySelector('#kpi-tokens-sub').textContent =
+      `命中率: ${(hitRate * 100).toFixed(1)}% (读取 ${fmtNum(cacheRead)} / 输入 ${fmtNum(input)})`;
 
-    const pIn = totalAll > 0 ? ((tokIn / totalAll) * 100).toFixed(1) : 0;
-    const pCache = totalAll > 0 ? ((tokCache / totalAll) * 100).toFixed(1) : 0;
-    const pOut = totalAll > 0 ? ((tokOut / totalAll) * 100).toFixed(1) : 0;
-    const stack = modalOverlay.querySelector('#kpi-tok-stack');
-    if (stack) {
-      stack.innerHTML = `
-        <i style="width: ${pIn}%; background: #16a34a" title="未命中输入 ${pIn}%"></i>
-        <i style="width: ${pCache}%; background: #3b82f6" title="缓存命中 ${pCache}%"></i>
-        <i style="width: ${pOut}%; background: #8b5cf6" title="输出 ${pOut}%"></i>
-      `;
-    }
+    const totalBar = Math.max(1, input + cacheRead + output);
+    modalOverlay.querySelector('#kpi-bar-in').style.width = ((input / totalBar) * 100).toFixed(1) + '%';
+    modalOverlay.querySelector('#kpi-bar-cache').style.width = ((cacheRead / totalBar) * 100).toFixed(1) + '%';
+    modalOverlay.querySelector('#kpi-bar-out').style.width = ((output / totalBar) * 100).toFixed(1) + '%';
 
-    modalOverlay.querySelector('#kpi-hit-rate').textContent = (hitRateVal * 100).toFixed(1) + '%';
-    modalOverlay.querySelector('#kpi-hit-sub').textContent = `命中 ${fmtNum(tokCache)} / 未命中 ${fmtNum(tokIn)}`;
-    modalOverlay.querySelector('#kpi-gens').textContent = fmtNum(genCalls);
-    modalOverlay.querySelector('#kpi-gens-sub').textContent = SELECTED_DAYS === 0 ? '全部历史总调用' : `近 ${SELECTED_DAYS} 天累计生成`;
-    modalOverlay.querySelector('#kpi-output').textContent = fmtNum(tokOut);
-    modalOverlay.querySelector('#kpi-out-sub').textContent = `思考 ${fmtNum(tokThinking)} · 回复 ${fmtNum(tokResp)}`;
-    modalOverlay.querySelector('#kpi-convs').textContent = String(sessions);
-    modalOverlay.querySelector('#kpi-convs-sub').textContent = `共 ${fmtFull(steps)} 步动作`;
+    modalOverlay.querySelector('#kpi-convs').textContent = fmtNum(sessions);
+    modalOverlay.querySelector('#kpi-convs-sub').textContent = `共 ${fmtNum(steps)} 步动作`;
+
+    modalOverlay.querySelector('#kpi-calls').textContent = fmtNum(calls);
+    const avgSteps = sessions > 0 ? (steps / sessions).toFixed(1) : '0';
+    modalOverlay.querySelector('#kpi-calls-sub').textContent = `平均每会话 ${avgSteps} 步`;
+
+    const activeDays = filtered.filter(d => num(d.sessions) > 0 || num(d.steps) > 0).length;
+    modalOverlay.querySelector('#kpi-days').textContent = activeDays + ' 天';
+    const lastActive = RAW_DAILY.length > 0 ? RAW_DAILY[RAW_DAILY.length - 1].date : '—';
+    modalOverlay.querySelector('#kpi-days-sub').textContent = `最近活跃: ${lastActive}`;
+
+    const tokensHint = fmtNum(totalAll);
+    const pillTokens = capsuleRoot.querySelector('#agy-pill-tokens');
+    if (pillTokens) pillTokens.textContent = `~${tokensHint}`;
   }
 
   function renderQuotaTab() {
     if (!RAW_QUOTA) return;
     const q = RAW_QUOTA;
     const acct = q.account || {};
-    modalOverlay.querySelector('#acct-email').textContent = acct.email || '本地语言服务器';
-    modalOverlay.querySelector('#acct-name').textContent = acct.name || '反重力用户';
-    modalOverlay.querySelector('#acct-time').textContent = fmtTime(q.timestamp || Date.now());
+    const creds = q.credits || {};
+
     modalOverlay.querySelector('#ls-port-badge').textContent = `LS: 127.0.0.1:${q.port || '--'}`;
+    modalOverlay.querySelector('#acct-email').textContent = acct.email || '—';
+    modalOverlay.querySelector('#acct-name').textContent = acct.name ? `${acct.name} (${acct.planName || acct.tier || 'Free'})` : '—';
+    modalOverlay.querySelector('#acct-credits').textContent =
+      creds.promptAvailable !== undefined ? `可用: ${creds.promptAvailable} / 每月: ${creds.promptMonthly}` : '—';
+    modalOverlay.querySelector('#acct-time').textContent = fmtTime(q.timestamp);
 
-    if (acct.tier) {
-      const bTier = modalOverlay.querySelector('#modal-acct-tier');
-      bTier.style.display = 'inline-block';
-      bTier.textContent = acct.tier;
-    }
-    if (acct.planName) {
-      const bPlan = modalOverlay.querySelector('#modal-acct-plan');
-      bPlan.style.display = 'inline-block';
-      bPlan.textContent = acct.planName;
-    }
-
-    if (q.credits) {
-      modalOverlay.querySelector('#acct-credits').textContent =
-        `Prompt: ${q.credits.promptAvailable ?? '--'} / ${q.credits.promptMonthly ?? '--'} · Flow: ${q.credits.flowAvailable ?? '--'} / ${q.credits.flowMonthly ?? '--'}`;
-    } else {
-      modalOverlay.querySelector('#acct-credits').textContent = '无限量配额计划';
-    }
-
+    const groups = q.groups || [];
     const groupsCont = modalOverlay.querySelector('#quota-groups-container');
     groupsCont.innerHTML = '';
-    const resetsTable = modalOverlay.querySelector('#resets-table-body');
-    resetsTable.innerHTML = '';
 
     const modelsList = modalOverlay.querySelector('#quota-models-list');
     modelsList.innerHTML = '';
 
-    for (const group of q.groups || []) {
+    let minRemaining = 1;
+    let minCountdown = null;
+
+    for (const g of groups) {
       const card = document.createElement('div');
       card.className = 'au-card';
-      const gName = group.displayName || '配额组';
       card.innerHTML = `
-        <div class="au-card-title">📊 ${gName}</div>
-        ${group.description ? `<div class="au-card-desc">${group.description}</div>` : ''}
-        <div class="au-grid" id="group-buckets-${gName.replace(/\\s+/g, '-')}"></div>
+        <div class="au-card-title">📊 ${g.displayName || '额度配额分组'}</div>
+        <div class="au-grid" id="group-buckets-grid"></div>
       `;
-      const grid = card.querySelector('.au-grid');
+      const grid = card.querySelector('#group-buckets-grid');
 
-      for (const b of group.buckets || []) {
-        const frac = b.remainingFraction ?? 1;
-        const color = remainingColor(frac);
-        const cd = fmtCountdown(b.resetTime);
-        const usedPct = ((1 - frac) * 100).toFixed(1);
-
-        // 更新右上角胶囊 (精准匹配 Gemini 5h)
-        if (b.bucketId === 'gemini-5h') {
-          capsuleRoot.querySelector('#agy-pill-5h').textContent = pct(frac);
-          capsuleRoot.querySelector('#agy-pill-tokens').textContent = `~${(frac * 115).toFixed(1)}M`;
-          capsuleRoot.querySelector('#agy-pill-countdown').textContent = `⏳ ${cd}`;
+      for (const b of (g.buckets || [])) {
+        const v = num(b.remainingFraction);
+        if (v < minRemaining) {
+          minRemaining = v;
         }
 
-        const bucketEl = document.createElement('div');
-        bucketEl.className = 'au-bucket';
-        bucketEl.innerHTML = `
+        const bEl = document.createElement('div');
+        bEl.className = 'au-bucket';
+        const color = remainingColor(v);
+
+        let resetTimeStr = '—';
+        if (b.resetTime) {
+          const rDate = new Date(b.resetTime);
+          const diffMs = rDate.getTime() - Date.now();
+          if (diffMs > 0) {
+            resetTimeStr = fmtCountdown(diffMs);
+            if (minCountdown === null || diffMs < minCountdown) minCountdown = diffMs;
+          } else {
+            resetTimeStr = fmtTime(rDate.getTime());
+          }
+        }
+
+        bEl.innerHTML = `
           <div class="au-bucket-head">
             <span class="au-bucket-label">${b.displayName || b.bucketId}</span>
-            <span class="au-bucket-pct" style="color: ${color}">${pct(frac)}</span>
+            <span class="au-bucket-pct" style="color: ${color}">${pct(v)}</span>
           </div>
           <div class="au-bar">
-            <div class="au-bar-fill" style="width: ${pct(frac)}; background: ${color}"></div>
+            <div class="au-bar-fill" style="width: ${(v * 100).toFixed(1)}%; background: ${color}"></div>
           </div>
           <div class="au-kv">
-            <span class="au-k">重置时间</span>
-            <span class="au-v">${cd} (${fmtTime(b.resetTime)})</span>
-            <span class="au-k">已消耗</span>
-            <span class="au-v">${usedPct}%</span>
+            <span class="au-k">重置倒计时</span>
+            <span class="au-v">${resetTimeStr}</span>
+            <span class="au-k">窗口类型</span>
+            <span class="au-v">${b.windowType || (b.bucketId?.includes('weekly') ? '周周期 (Weekly)' : '5小时滑动窗口')}</span>
           </div>
         `;
-        grid.appendChild(bucketEl);
+        grid.appendChild(bEl);
 
-        // 同步追加到重置 Tab
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td><b>${b.displayName || b.bucketId}</b> <span style="opacity:0.5; font-size:10px">(${gName})</span></td>
-          <td class="au-num" style="color:${color}; font-weight:700">${pct(frac)}</td>
-          <td class="au-num">${usedPct}%</td>
-          <td class="au-num">${fmtTime(b.resetTime)} (${cd})</td>
-          <td class="au-num"><span style="color:${color}">● 正常</span></td>
-        `;
-        resetsTable.appendChild(tr);
-
-        // 同步模型小卡片
         const mEl = document.createElement('div');
         mEl.className = 'au-model';
         mEl.innerHTML = `
           <span class="au-dot" style="background: ${color}"></span>
-          <span class="au-model-name" title="${b.displayName}">${b.displayName}</span>
-          <span class="au-v" style="color: ${color}; margin-left:auto">${pct(frac, 0)}</span>
+          <span class="au-model-name" title="${b.displayName || b.bucketId}">${b.displayName || b.bucketId}</span>
+          <span class="au-v" style="color: ${color}">${pct(v, 0)}</span>
         `;
         modelsList.appendChild(mEl);
       }
       groupsCont.appendChild(card);
     }
+
+    const pill5h = capsuleRoot.querySelector('#agy-pill-5h');
+    if (pill5h) {
+      pill5h.textContent = pct(minRemaining);
+      pill5h.style.color = remainingColor(minRemaining);
+    }
+    const pillCountdown = capsuleRoot.querySelector('#agy-pill-countdown');
+    if (pillCountdown) {
+      pillCountdown.textContent = minCountdown !== null ? `⏳ ${fmtCountdown(minCountdown)}` : '⏳ 活跃';
+    }
+
+    renderResetsTab();
   }
 
+  // 趋势时序折线图渲染器 (TabTrend)
+  const SERIES_COLOR_MAP = {
+    'gemini-weekly': '#3b82f6',
+    'gemini-5h': '#8b5cf6',
+    '3p-weekly': '#f59e0b',
+    '3p-5h': '#10b981',
+    'default': '#06b6d4'
+  };
+
+  const SERIES_LABEL_MAP = {
+    'gemini-weekly': 'Gemini 周期配额 (周)',
+    'gemini-5h': 'Gemini 速率限制 (5h)',
+    '3p-weekly': '第三方模型配额 (周)',
+    '3p-5h': '第三方速率限制 (5h)'
+  };
+
+  async function fetchTrendData(range) {
+    if (range) SELECTED_TREND_RANGE = range;
+    const summaryInfo = modalOverlay.querySelector('#trend-summary-info');
+    if (summaryInfo) summaryInfo.textContent = '正在获取历史采样点...';
+
+    try {
+      const res = await fetch(`http://127.0.0.1:19388/api/history?range=${SELECTED_TREND_RANGE}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      RAW_HISTORY = data;
+      renderTrendTab(data);
+    } catch (e) {
+      const container = modalOverlay.querySelector('#trend-chart-container');
+      if (container) {
+        container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--au-text-muted)">获取时序数据失败: ${e.message}</div>`;
+      }
+    }
+  }
+
+  function renderTrendTab(data) {
+    const container = modalOverlay.querySelector('#trend-chart-container');
+    const summaryInfo = modalOverlay.querySelector('#trend-summary-info');
+    if (!container) return;
+
+    if (!data || !Array.isArray(data.points) || data.points.length < 2) {
+      container.innerHTML = `
+        <div style="color: var(--au-text-muted); font-size: 12px; text-align: center; padding: 40px">
+          ⏳ 当前时间范围（${SELECTED_TREND_RANGE}）历史采样点不足（至少需 2 个点）。
+          <div style="margin-top: 8px; font-size: 11px; opacity: 0.7">后台守护每 120 秒自动采样一次，反重力桌面端运行时将持续积累。</div>
+        </div>
+      `;
+      if (summaryInfo) summaryInfo.textContent = '采样积累中...';
+      return;
+    }
+
+    const points = data.points;
+    const n = points.length;
+
+    if (summaryInfo) {
+      summaryInfo.textContent = `${fmtTime(points[0].t)} → ${fmtTime(points[n - 1].t)} · ${n} 个绘图点 / ${data.sampleCount || n} 次采样`;
+    }
+
+    // 收集所有 series key
+    const keys = [];
+    for (const p of points) {
+      for (const k of Object.keys(p.values || {})) {
+        if (!keys.includes(k)) keys.push(k);
+      }
+    }
+
+    // 备用颜色表
+    const fallbackPalette = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#06b6d4'];
+    const seriesList = keys.map((k, i) => ({
+      key: k,
+      label: SERIES_LABEL_MAP[k] || k,
+      color: SERIES_COLOR_MAP[k] || fallbackPalette[i % fallbackPalette.length],
+      values: points.map(p => (p.values && p.values[k] !== undefined) ? num(p.values[k]) : 1)
+    }));
+
+    // SVG 绘图尺寸
+    const W = 900;
+    const H = 220;
+    const P = { l: 45, r: 25, t: 16, b: 28 };
+    const iw = W - P.l - P.r;
+    const ih = H - P.t - P.b;
+
+    const x = (i) => P.l + (n === 1 ? iw / 2 : (i / (n - 1)) * iw);
+    const y = (v) => P.t + ih - Math.min(1, Math.max(0, v)) * ih;
+
+    // 1. 网格线与 Y 轴刻度 (0%, 25%, 50%, 75%, 100%)
+    let gridSvg = '';
+    [0, 0.25, 0.5, 0.75, 1].forEach(g => {
+      const lineY = y(g);
+      gridSvg += `
+        <line x1="${P.l}" y1="${lineY}" x2="${W - P.r}" y2="${lineY}"
+              stroke="var(--au-border-l1)" stroke-width="1" stroke-dasharray="${g === 0 ? 'none' : '3 4'}" />
+        <text x="${P.l - 6}" y="${lineY + 3.5}" text-anchor="end" font-size="10" fill="var(--au-text-muted)" font-family="var(--au-font)">
+          ${Math.round(g * 100)}%
+        </text>
+      `;
+    });
+
+    // 2. X 轴时间刻度 (3~5 个点)
+    const tickIndices = [0, Math.floor((n - 1) / 3), Math.floor((n - 1) * 2 / 3), n - 1]
+      .filter((v, i, a) => a.indexOf(v) === i && v >= 0);
+
+    let xLabelsSvg = '';
+    tickIndices.forEach(idx => {
+      const p = points[idx];
+      const anchor = idx === 0 ? 'start' : (idx === n - 1 ? 'end' : 'middle');
+      const timeStr = new Date(p.t).toLocaleString('zh-CN', {
+        month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+      });
+      xLabelsSvg += `
+        <text x="${x(idx)}" y="${H - 8}" text-anchor="${anchor}" font-size="10" fill="var(--au-text-muted)" font-family="var(--au-font)">
+          ${timeStr}
+        </text>
+      `;
+    });
+
+    // 3. 各 series 的折线与末端圆点、当前值
+    let pathsSvg = '';
+    seriesList.forEach(s => {
+      if (s.values.length !== n) return;
+      const d = s.values.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+      const lastVal = s.values[n - 1];
+      const lastX = x(n - 1);
+      const lastY = y(lastVal);
+
+      pathsSvg += `
+        <path d="${d}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" />
+        <circle cx="${lastX}" cy="${lastY}" r="3.5" fill="${s.color}" stroke="var(--au-bg)" stroke-width="1.5" />
+      `;
+    });
+
+    // 4. 组装整体 SVG
+    container.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" style="width: 100%; height: auto; max-height: ${H}px; display: block;" preserveAspectRatio="none">
+        ${gridSvg}
+        ${pathsSvg}
+        ${xLabelsSvg}
+      </svg>
+      <div class="au-legend" style="justify-content: flex-start; padding: 4px 6px 0;">
+        ${seriesList.map(s => {
+          const latest = s.values[n - 1];
+          return `
+            <span class="au-legend-i">
+              <span class="au-legend-dot" style="background: ${s.color}"></span>
+              <span style="font-weight: 600">${s.label}:</span>
+              <span style="color: ${s.color}; font-weight: 700; font-variant-numeric: tabular-nums">${pct(latest)}</span>
+            </span>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    // 5. 渲染各桶消耗与恢复统计卡片 (如果有 buckets 聚合)
+    const bucketsCard = modalOverlay.querySelector('#trend-buckets-card');
+    const bucketsGrid = modalOverlay.querySelector('#trend-buckets-summary-grid');
+    if (bucketsCard && bucketsGrid && Array.isArray(data.buckets) && data.buckets.length > 0) {
+      bucketsCard.style.display = 'block';
+      bucketsGrid.innerHTML = data.buckets.map(b => {
+        const name = SERIES_LABEL_MAP[b.id] || b.id;
+        const color = SERIES_COLOR_MAP[b.id] || 'var(--au-brand)';
+        return `
+          <div class="au-bucket">
+            <div class="au-bucket-head">
+              <span class="au-bucket-label" style="font-weight:600">${name}</span>
+              <span class="au-bucket-pct" style="color: ${color}; font-size:16px">${pct(b.consumed24h, 1)} <span style="font-size:10px; font-weight:normal; opacity:0.7">/ 24h消耗</span></span>
+            </div>
+            <div class="au-kv" style="margin-top:6px;">
+              <span class="au-k">今日已消耗</span>
+              <span class="au-v">${pct(b.consumedToday, 1)}</span>
+              <span class="au-k">近 7 天累计消耗</span>
+              <span class="au-v">${pct(b.consumed7d, 1)}</span>
+              <span class="au-k">周期重置次数</span>
+              <span class="au-v" style="color: var(--au-emerald)">${b.resets || 0} 次</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 182 天日历热力图渲染器 (TabHeatmap)
   function renderHeatmap() {
     const grid = modalOverlay.querySelector('#au-heat-grid');
-    if (!grid) return;
+    const monthsContainer = modalOverlay.querySelector('#au-heat-months');
+    if (!grid || !monthsContainer) return;
+
     grid.innerHTML = '';
+    monthsContainer.innerHTML = '';
 
     const days = 182;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const start = new Date(today.getTime() - (days - 1) * 86400000);
+    // 对齐到周一
     start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
 
     const dayMap = new Map();
@@ -950,9 +1146,42 @@
     const cells = [];
     for (let d = new Date(start.getTime()); d.getTime() <= today.getTime(); d.setDate(d.getDate() + 1)) {
       const key = d.toISOString().slice(0, 10);
-      cells.push({ date: key, item: dayMap.get(key) });
+      cells.push({
+        date: key,
+        ms: d.getTime(),
+        month: d.getMonth() + 1,
+        dayOfWeek: (d.getDay() + 6) % 7,
+        item: dayMap.get(key)
+      });
     }
 
+    const numWeeks = Math.ceil(cells.length / 7);
+
+    // 1. 动态生成顶部月份标尺 (Month Labels)
+    let lastMonth = -1;
+    let lastMonthCol = -999;
+    for (let col = 0; col < numWeeks; col++) {
+      const idx = col * 7;
+      if (idx < cells.length) {
+        const m = cells[idx].month;
+        if (m !== lastMonth && (col - lastMonthCol >= 2)) {
+          const label = document.createElement('span');
+          label.className = 'au-heat-month-label';
+          label.style.position = 'absolute';
+          label.style.left = (col * 14) + 'px';
+          label.style.fontSize = '10.5px';
+          label.style.color = 'var(--au-text-muted)';
+          label.style.fontWeight = '600';
+          label.style.whiteSpace = 'nowrap';
+          label.textContent = `${m}月`;
+          monthsContainer.appendChild(label);
+          lastMonth = m;
+          lastMonthCol = col;
+        }
+      }
+    }
+
+    // 2. 计算各单元格数值与峰值
     const metric = SELECTED_HEAT_METRIC;
     let max = 0;
     cells.forEach(c => {
@@ -968,6 +1197,9 @@
     });
 
     const todayStr = today.toISOString().slice(0, 10);
+    const weekdaysZh = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+
+    // 3. 填充格子
     cells.forEach(c => {
       const cell = document.createElement('div');
       cell.className = 'au-cell' + (c.date === todayStr ? ' today' : '');
@@ -981,7 +1213,7 @@
       }
       cell.style.background = color;
       const unit = metric === 'sessions' ? '个会话' : (metric === 'steps' ? '步' : 'Token');
-      cell.title = `${c.date} · ${fmtNum(c.val)} ${unit}`;
+      cell.title = `${c.date} (${weekdaysZh[c.dayOfWeek]}) · ${fmtNum(c.val)} ${unit}`;
       grid.appendChild(cell);
     });
 
@@ -989,6 +1221,7 @@
       `近 ${days} 天 · 峰值: ${fmtNum(max)} ${metric === 'sessions' ? '个会话' : (metric === 'steps' ? '步' : 'Token')}`;
   }
 
+  // 逐日汇总表格渲染器 (TabSummary)
   function renderSummaryTab() {
     const tbody = modalOverlay.querySelector('#summary-table-body');
     if (!tbody) return;
@@ -1016,6 +1249,59 @@
     }).join('');
   }
 
+  // 配额桶重置监控渲染器 (TabResets)
+  function renderResetsTab() {
+    const tbody = modalOverlay.querySelector('#resets-table-body');
+    if (!tbody) return;
+
+    const buckets = [];
+    if (RAW_QUOTA && Array.isArray(RAW_QUOTA.groups)) {
+      for (const g of RAW_QUOTA.groups) {
+        for (const b of (g.buckets || [])) {
+          buckets.push(b);
+        }
+      }
+    }
+
+    if (buckets.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--au-text-muted)">未检测到活跃的额度桶</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = buckets.map(b => {
+      const v = num(b.remainingFraction);
+      const used = (1 - v);
+      const color = remainingColor(v);
+      let countdown = '—';
+      let rTimeStr = '—';
+
+      if (b.resetTime) {
+        const rDate = new Date(b.resetTime);
+        const diffMs = rDate.getTime() - Date.now();
+        if (diffMs > 0) {
+          countdown = fmtCountdown(diffMs);
+        } else {
+          countdown = '已到期恢复';
+        }
+        rTimeStr = fmtTime(rDate.getTime());
+      }
+
+      const windowType = b.windowType || (b.bucketId?.includes('weekly') ? '周周期重置' : '5小时滑动窗口');
+
+      return `
+        <tr>
+          <td style="text-align: left; font-weight: 600;">${b.displayName || b.bucketId}</td>
+          <td class="au-num" style="color: ${color}; font-weight: 700">${pct(v)}</td>
+          <td class="au-num">${pct(used)}</td>
+          <td class="au-num" style="color: var(--au-brand); font-weight: 600">${countdown}</td>
+          <td class="au-num" style="color: var(--au-text-muted)">${rTimeStr}</td>
+          <td class="au-num">${windowType}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  // 会话 Tab 与模型列表渲染器 (TabConversations)
   function renderConversationsTab() {
     const modelsTbody = modalOverlay.querySelector('#conv-models-tbody');
     if (modelsTbody) {
@@ -1025,7 +1311,7 @@
         const hit = totalIn > 0 ? ((num(t.cacheRead) / totalIn) * 100).toFixed(1) + '%' : '—';
         return `
           <tr>
-            <td><b>${m.model}</b></td>
+            <td style="font-weight: 600">${m.model}</td>
             <td class="au-num">${m.genCalls || 0}</td>
             <td class="au-num" title="${fmtFull(t.input)}">${fmtNum(t.input)}</td>
             <td class="au-num" style="color:var(--au-purple)" title="${fmtFull(t.output)}">${fmtNum(t.output)}</td>
@@ -1036,24 +1322,18 @@
       }).join('');
     }
 
-    const wsTbody = modalOverlay.querySelector('#conv-ws-tbody');
-    if (wsTbody) {
-      wsTbody.innerHTML = RAW_WORKSPACES.map(w => `
-        <tr class="ws-filter-row" data-ws="${w.workspace}" style="cursor: pointer" title="点击筛选此工作区">
-          <td class="au-trunc"><b>${shortWs(w.workspace)}</b></td>
-          <td class="au-num">${w.sessions || 0}</td>
-          <td class="au-num">${w.steps || 0}</td>
-          <td class="au-num" title="${fmtFull(w.tokens?.input)}">${fmtNum(w.tokens?.input)}</td>
-          <td class="au-num" style="color:var(--au-purple)" title="${fmtFull(w.tokens?.output)}">${fmtNum(w.tokens?.output)}</td>
-        </tr>
-      `).join('');
-
-      wsTbody.querySelectorAll('.ws-filter-row').forEach(row => {
-        row.addEventListener('click', () => {
-          const ws = row.getAttribute('data-ws');
-          SELECTED_WS_FILTER = SELECTED_WS_FILTER === ws ? '' : ws;
-          updateConversationsList();
-        });
+    const wsContainer = modalOverlay.querySelector('#conv-workspaces-pills');
+    if (wsContainer) {
+      wsContainer.innerHTML = '';
+      RAW_WORKSPACES.forEach(w => {
+        const btn = document.createElement('button');
+        btn.className = 'au-btn' + (SELECTED_WS_FILTER === w.workspace ? ' on' : '');
+        btn.textContent = `${shortWs(w.workspace)} (${w.sessions})`;
+        btn.onclick = () => {
+          SELECTED_WS_FILTER = SELECTED_WS_FILTER === w.workspace ? '' : w.workspace;
+          renderConversationsTab();
+        };
+        wsContainer.appendChild(btn);
       });
     }
 
@@ -1069,7 +1349,7 @@
       if (ws) {
         badge.style.display = 'inline-block';
         badge.textContent = `工作区: ${shortWs(ws)} ✕`;
-        badge.onclick = () => { SELECTED_WS_FILTER = ''; updateConversationsList(); };
+        badge.onclick = () => { SELECTED_WS_FILTER = ''; renderConversationsTab(); };
       } else {
         badge.style.display = 'none';
       }
@@ -1098,9 +1378,9 @@
       const hit = totalIn > 0 ? ((num(t.cacheRead) / totalIn) * 100).toFixed(1) + '%' : '—';
       return `
         <tr>
-          <td class="au-trunc" title="${c.title || c.preview || ''}"><b>${c.title || c.preview || '(无标题会话)'}</b></td>
+          <td class="au-trunc" title="${c.title || c.preview || ''}"><b>${c.title || c.preview || '未命名会话'}</b></td>
           <td class="au-trunc" title="${(c.workspaces || []).join('\\n')}">${shortWs((c.workspaces || [])[0])}</td>
-          <td class="au-trunc" title="${(c.models || []).join(', ')}">${(c.models || []).slice(0, 2).join(', ') || '—'}</td>
+          <td class="au-trunc" title="${(c.models || []).join(', ')}">${(c.models || []).slice(0, 2).join(', ')}</td>
           <td class="au-num">${c.steps || 0}</td>
           <td class="au-num">${c.genCalls || 0}</td>
           <td class="au-num" title="${fmtFull(t.input)}">${fmtNum(t.input)}</td>
@@ -1113,7 +1393,7 @@
     }).join('');
   }
 
-  // 7. 取数逻辑
+  // 8. 统一取数逻辑
   async function fetchAllData() {
     try {
       const qRes = await fetch('http://127.0.0.1:19388/api/quota', { signal: AbortSignal.timeout(2000) });
@@ -1124,7 +1404,7 @@
     } catch (e) {}
 
     try {
-      const cRes = await fetch('http://127.0.0.1:19388/api/conversations', { signal: AbortSignal.timeout(2000) });
+      const cRes = await fetch('http://127.0.0.1:19388/api/conversations', { signal: AbortSignal.timeout(3500) });
       if (cRes.ok) {
         const cData = await cRes.json();
         RAW_CONVERSATIONS = cData.conversations || [];
@@ -1140,7 +1420,7 @@
     } catch (e) {}
   }
 
-  // 8. 交互事件绑定
+  // 9. 交互事件绑定
   const pillBar = capsuleRoot.querySelector('#agy-pill-bar');
   const overlay = modalOverlay;
   const modalWin = modalOverlay.querySelector('#agy-modal-win');
@@ -1151,6 +1431,7 @@
   function openModal() {
     overlay.classList.add('open');
     fetchAllData();
+    fetchTrendData();
   }
   function closeModal() {
     overlay.classList.remove('open');
@@ -1179,7 +1460,7 @@
 
   btnRefresh.addEventListener('click', () => {
     btnRefresh.textContent = '↻ 刷新中...';
-    fetchAllData().finally(() => {
+    Promise.allSettled([fetchAllData(), fetchTrendData()]).finally(() => {
       setTimeout(() => { btnRefresh.textContent = '↻ 刷新'; }, 300);
     });
   });
@@ -1204,6 +1485,22 @@
       const targetId = btn.getAttribute('data-tab');
       const pane = modalOverlay.querySelector('#' + targetId);
       if (pane) pane.classList.add('on');
+
+      if (targetId === 'tab-trend') {
+        fetchTrendData();
+      } else if (targetId === 'tab-heatmap') {
+        renderHeatmap();
+      }
+    });
+  });
+
+  // 趋势图范围切换
+  modalOverlay.querySelectorAll('#trend-range-group .au-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      modalOverlay.querySelectorAll('#trend-range-group .au-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      const range = btn.getAttribute('data-range');
+      fetchTrendData(range);
     });
   });
 
@@ -1234,7 +1531,7 @@
     }
   });
 
-  // 9. 智能测距自适应吸附
+  // 10. 智能测距自适应吸附
   function updateCapsulePosition() {
     const cRoot = document.getElementById('agy-quota-capsule-root');
     if (!cRoot) return;
@@ -1244,7 +1541,7 @@
     for (const btn of buttons) {
       if (btn.closest && btn.closest('#agy-quota-capsule-root, #agy-inpage-modal-overlay')) continue;
       const rect = btn.getBoundingClientRect();
-      if (rect.top >= 0 && rect.top < 45 && rect.left > window.innerWidth / 2 && rect.width > 0) {
+      if (rect.top >= 0 && rect.top < 45 && rect.left > window.innerWidth / 2 && rect.width > 0 && rect.height > 0) {
         const fromRight = window.innerWidth - rect.left;
         if (fromRight > rightOffset && fromRight < 450) {
           rightOffset = fromRight;
@@ -1255,7 +1552,7 @@
     cRoot.style.top = '5px';
   }
 
-  // 10. 永久挂载与守护
+  // 11. 永久挂载与守护
   function ensureMounted() {
     if (!document.body) return;
     const cRoot = document.getElementById('agy-quota-capsule-root');
@@ -1277,6 +1574,7 @@
 
   ensureMounted();
   fetchAllData();
+  fetchTrendData();
   setInterval(ensureMounted, 400);
   setInterval(fetchAllData, 3000);
   window.addEventListener('resize', updateCapsulePosition);
