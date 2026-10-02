@@ -538,9 +538,9 @@
       if (hours >= 24) {
         const days = Math.floor(hours / 24);
         const remH = hours % 24;
-        return \`\${days}天\${remH}小时\`;
+        return `${days}天${remH}小时`;
       }
-      return \`\${hours}小时\${mins}分\`;
+      return `${hours}小时${mins}分`;
     }
 
     // 动态 Token 预算反推计算器
@@ -650,16 +650,16 @@
       }
 
       document.getElementById('kpi-hit-rate').textContent = hitRate + '%';
-      document.getElementById('kpi-hit-sub').textContent = \`命中 \${fmtNum(totalCache)} / 未命 \${fmtNum(totalInput)}\`;
+      document.getElementById('kpi-hit-sub').textContent = `命中 ${fmtNum(totalCache)} / 未命 ${fmtNum(totalInput)}`;
 
       document.getElementById('kpi-gens').textContent = fmtNum(totalGens);
       document.getElementById('kpi-active-days').textContent = days === 'all' ? '全部历史 ' + RAW_DAILY.length + ' 天有活动' : '周期内活动统计';
 
       document.getElementById('kpi-output').textContent = fmtNum(totalOutput);
-      document.getElementById('kpi-out-sub').textContent = \`思考 \${fmtNum(thinking)} · 回复 \${fmtNum(response)}\`;
+      document.getElementById('kpi-out-sub').textContent = `思考 ${fmtNum(thinking)} · 回复 ${fmtNum(response)}`;
 
       document.getElementById('kpi-sessions').textContent = filteredConvs.length;
-      document.getElementById('kpi-steps').textContent = \`共 \${fmtNum(totalSteps)} 步\`;
+      document.getElementById('kpi-steps').textContent = `共 ${fmtNum(totalSteps)} 步`;
 
       const searchVal = document.getElementById('session-search')?.value || '';
       renderSessions(searchVal, filteredConvs);
@@ -708,7 +708,7 @@
 
       const maxVal = values.reduce((m, v) => Math.max(m, v), 0);
       const unit = currentHeatMetric === 'steps' ? ' 步' : (currentHeatMetric === 'sessions' ? ' 个会话' : ' token');
-      document.getElementById('heat-peak').textContent = \`近 182 天 · 峰值 \${fmtNum(maxVal)}\${unit}\`;
+      document.getElementById('heat-peak').textContent = `近 182 天 · 峰值 ${fmtNum(maxVal)}${unit}`;
 
       const todayStr = today.toISOString().slice(0, 10);
 
@@ -727,7 +727,7 @@
         }
 
         cell.style.background = color;
-        cell.title = \`\${c.date}: \${fmtNum(v)}\${unit}\`;
+        cell.title = `${c.date}: ${fmtNum(v)}${unit}`;
         container.appendChild(cell);
       });
     }
@@ -769,18 +769,18 @@
         const hitRate = totalIn > 0 ? ((cacheRead / totalIn) * 100).toFixed(1) : '0';
         const dateStr = c.lastModified ? new Date(c.lastModified).toLocaleDateString() : '';
 
-        item.innerHTML = \`
+        item.innerHTML = `
           <div class="flex items-center justify-between">
-            <h3 class="text-xs font-semibold truncate max-w-[280px]" title="\${title}">\${title}</h3>
-            <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">\${model}</span>
+            <h3 class="text-xs font-semibold truncate max-w-[280px]" title="${title}">${title}</h3>
+            <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">${model}</span>
           </div>
           <div class="flex items-center justify-between text-[10px]" style="color: var(--text-muted)">
             <div class="flex items-center gap-1.5">
-              <span>\${steps} 步</span> · <span>\${gens} 次生成</span> · <span>命中: <b class="text-emerald-600 dark:text-emerald-400 font-mono">\${hitRate}%</b></span>
+              <span>${steps} 步</span> · <span>${gens} 次生成</span> · <span>命中: <b class="text-emerald-600 dark:text-emerald-400 font-mono">${hitRate}%</b></span>
             </div>
-            <span class="font-mono">\${dateStr}</span>
+            <span class="font-mono">${dateStr}</span>
           </div>
-        \`;
+        `;
         listEl.appendChild(item);
       });
     }
@@ -802,16 +802,16 @@
         const cacheTok = fmtNum(m.tokens?.cacheRead || 0);
         const totalIn = (m.tokens?.input || 0) + (m.tokens?.cacheRead || 0);
         const hitRate = totalIn > 0 ? (((m.tokens?.cacheRead || 0) / totalIn) * 100).toFixed(1) + '%' : '—';
-        return \`
+        return `
           <tr class="hover:bg-black/5 dark:hover:bg-white/5 transition">
-            <td class="py-2 font-mono font-medium">\${name}</td>
-            <td class="py-2 text-right opacity-70 font-mono">\${calls}</td>
-            <td class="py-2 text-right font-mono">\${inTok}</td>
-            <td class="py-2 text-right text-purple-600 dark:text-purple-400 font-mono">\${outTok}</td>
-            <td class="py-2 text-right text-emerald-600 dark:text-emerald-400 font-mono">\${cacheTok}</td>
-            <td class="py-2 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">\${hitRate}</td>
+            <td class="py-2 font-mono font-medium">${name}</td>
+            <td class="py-2 text-right opacity-70 font-mono">${calls}</td>
+            <td class="py-2 text-right font-mono">${inTok}</td>
+            <td class="py-2 text-right text-purple-600 dark:text-purple-400 font-mono">${outTok}</td>
+            <td class="py-2 text-right text-emerald-600 dark:text-emerald-400 font-mono">${cacheTok}</td>
+            <td class="py-2 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">${hitRate}</td>
           </tr>
-        \`;
+        `;
       }).join('');
     }
 
@@ -842,13 +842,13 @@
               if (elVal) elVal.textContent = proj.remPct;
               if (elBar) elBar.style.width = proj.remPct;
               if (elRemTok) elRemTok.textContent = proj.remTokStr;
-              if (elCalls) elCalls.textContent = \`≈ 还能调用 \${proj.remCalls.toLocaleString()} 次\`;
-              if (elCap) elCap.textContent = \`周总预算 ≈ \${proj.capStr}\`;
+              if (elCalls) elCalls.textContent = `≈ 还能调用 ${proj.remCalls.toLocaleString()} 次`;
+              if (elCap) elCap.textContent = `周总预算 ≈ ${proj.capStr}`;
               if (elReset && resetStr) elReset.textContent = '重置: ' + resetStr;
               if (elUsed) elUsed.textContent = '已用: ' + proj.usedPct;
 
               const trendWeekly = document.getElementById('trend-label-weekly');
-              if (trendWeekly) trendWeekly.textContent = \`● 周配额 (\${proj.remPct})\`;
+              if (trendWeekly) trendWeekly.textContent = `● 周配额 (${proj.remPct})`;
 
             } else if (b.bucketId === 'gemini-5h') {
               const elVal = document.getElementById('gemini-5h-val');
@@ -862,20 +862,20 @@
               if (elVal) elVal.textContent = proj.remPct;
               if (elBar) elBar.style.width = proj.remPct;
               if (elRemTok) elRemTok.textContent = proj.remTokStr;
-              if (elCalls) elCalls.textContent = \`≈ 还能调用 \${proj.remCalls.toLocaleString()} 次\`;
-              if (elCap) elCap.textContent = \`5h预算容量 ≈ \${proj.capStr}\`;
+              if (elCalls) elCalls.textContent = `≈ 还能调用 ${proj.remCalls.toLocaleString()} 次`;
+              if (elCap) elCap.textContent = `5h预算容量 ≈ ${proj.capStr}`;
               if (elReset && resetStr) elReset.textContent = '重置: ' + resetStr;
               if (elUsed) elUsed.textContent = '已用: ' + proj.usedPct;
 
               const trend5h = document.getElementById('trend-label-5h');
-              if (trend5h) trend5h.textContent = \`● 5小时滚动 (\${proj.remPct})\`;
+              if (trend5h) trend5h.textContent = `● 5小时滚动 (${proj.remPct})`;
 
               const m38 = document.getElementById('m-gemini-38');
               const m37 = document.getElementById('m-gemini-37');
               const m31 = document.getElementById('m-gemini-31');
-              if (m38) m38.innerHTML = \`\${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~\${proj.remTokStr})</span>\`;
-              if (m37) m37.innerHTML = \`\${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~\${proj.remTokStr})</span>\`;
-              if (m31) m31.innerHTML = \`\${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~\${proj.remTokStr})</span>\`;
+              if (m38) m38.innerHTML = `${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~${proj.remTokStr})</span>`;
+              if (m37) m37.innerHTML = `${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~${proj.remTokStr})</span>`;
+              if (m31) m31.innerHTML = `${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~${proj.remTokStr})</span>`;
             }
           }
         }
@@ -894,7 +894,7 @@
         document.getElementById('sum-steps').textContent = fmtNum(c.totals?.steps || 0);
         document.getElementById('sum-gens').textContent = fmtNum(c.totals?.genCalls || 0);
         document.getElementById('sum-models').textContent = Object.keys(RAW_BY_MODEL).length + ' 种';
-        document.getElementById('session-count-tag').textContent = \`SQLite 本地只读 · \${RAW_CONVERSATIONS.length} 个会话\`;
+        document.getElementById('session-count-tag').textContent = `SQLite 本地只读 · ${RAW_CONVERSATIONS.length} 个会话`;
 
         applyFilter(currentFilterDays);
         renderHeatmap();
