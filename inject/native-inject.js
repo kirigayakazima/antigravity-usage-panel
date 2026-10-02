@@ -665,6 +665,7 @@
                 <tr>
                   <th>配额桶</th>
                   <th class="au-num">当前剩余</th>
+                  <th class="au-num">预估剩余 Token</th>
                   <th class="au-num">已用比例</th>
                   <th class="au-num">重置倒计时</th>
                   <th class="au-num">预计重置时间</th>
@@ -672,7 +673,7 @@
                 </tr>
               </thead>
               <tbody id="resets-table-body">
-                <tr><td colspan="6" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在读取配额桶状态...</td></tr>
+                <tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在读取配额桶状态...</td></tr>
               </tbody>
             </table>
           </div>
@@ -794,6 +795,67 @@
     return 'var(--au-red)';
   };
 
+  // 根据当前真实用量动态反推配额桶大致剩余 Token 与满额容量
+  function calcQuotaProjection(remainingFraction, bucketId) {
+    const remaining = Math.max(0, Math.min(1, num(remainingFraction)));
+    const used = 1 - remaining;
+    const bId = String(bucketId || '').toLowerCase();
+    const isWeekly = bId.includes('weekly');
+
+    // 统计今天的真实总 Token 消耗
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayItem = RAW_DAILY.find(d => d.date === todayStr);
+
+    let todayTok = 0, todayCalls = 0;
+    if (todayItem) {
+      const t = todayItem.tokens || {};
+      todayTok = num(t.input) + num(t.output) + num(t.cacheRead);
+      todayCalls = num(todayItem.genCalls);
+    }
+
+    // 统计近 7 天的总 Token 消耗
+    let tokens7d = 0, calls7d = 0;
+    const cutoff7d = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    for (const d of RAW_DAILY) {
+      if (d.date >= cutoff7d) {
+        if (d.tokens) tokens7d += num(d.tokens.input) + num(d.tokens.output) + num(d.tokens.cacheRead);
+        calls7d += num(d.genCalls);
+      }
+    }
+
+    // 默认基准容量 (5h 基准约 115M，周基准约 650M)
+    let cap = isWeekly ? 623e6 : 104e6;
+    let calls = 0;
+
+    if (isWeekly) {
+      if (used >= 0.005 && tokens7d > 0) {
+        cap = tokens7d / used;
+        if (calls7d > 0) calls = Math.round(calls7d * (remaining / used));
+      } else {
+        calls = Math.round((cap * remaining) / 120000);
+      }
+    } else {
+      if (used >= 0.005 && todayTok > 0) {
+        cap = todayTok / used;
+        if (todayCalls > 0) calls = Math.round(todayCalls * (remaining / used));
+      } else {
+        calls = Math.round((cap * remaining) / 120000);
+      }
+    }
+
+    const remainingTokens = cap * remaining;
+
+    return {
+      remPct: pct(remaining),
+      remTokens: remainingTokens,
+      remTokStr: fmtNum(remainingTokens),
+      capTokens: cap,
+      capStr: fmtNum(cap),
+      remCalls: calls,
+      remCallsText: calls > 0 ? `还能调用 ≈ ${calls.toLocaleString()} 次` : '额度充裕'
+    };
+  }
+
   // 7. 渲染函数集合
   function updateKPIs() {
     const cutoffMs = SELECTED_DAYS === 0 ? 0 : Date.now() - SELECTED_DAYS * 86400000;
@@ -843,9 +905,20 @@
     const lastActive = RAW_DAILY.length > 0 ? RAW_DAILY[RAW_DAILY.length - 1].date : '—';
     modalOverlay.querySelector('#kpi-days-sub').textContent = `最近活跃: ${lastActive}`;
 
-    const tokensHint = fmtNum(totalAll);
+    // 胶囊上的 ~Token 始终优先展示当前 5h 窗口根据用量动态反推的大致剩余 Token
+    let rem5hFraction = 1;
+    if (RAW_QUOTA && RAW_QUOTA.groups) {
+      for (const g of RAW_QUOTA.groups) {
+        for (const b of (g.buckets || [])) {
+          if (b.bucketId === 'gemini-5h' || b.displayName?.includes('Five Hour')) {
+            rem5hFraction = num(b.remainingFraction);
+          }
+        }
+      }
+    }
+    const proj5h = calcQuotaProjection(rem5hFraction, 'gemini-5h');
     const pillTokens = capsuleRoot.querySelector('#agy-pill-tokens');
-    if (pillTokens) pillTokens.textContent = `~${tokensHint}`;
+    if (pillTokens) pillTokens.textContent = `~${proj5h.remTokStr}`;
   }
 
   function renderQuotaTab() {
@@ -886,6 +959,7 @@
           minRemaining = v;
         }
 
+        const proj = calcQuotaProjection(v, b.bucketId || b.displayName);
         const bEl = document.createElement('div');
         bEl.className = 'au-bucket';
         const color = remainingColor(v);
@@ -902,19 +976,29 @@
           }
         }
 
+        const isWeekly = (b.bucketId || '').includes('weekly');
         bEl.innerHTML = `
           <div class="au-bucket-head">
             <span class="au-bucket-label">${b.displayName || b.bucketId}</span>
-            <span class="au-bucket-pct" style="color: ${color}">${pct(v)}</span>
+            <div style="display: flex; align-items: baseline; gap: 8px;">
+              <span class="au-bucket-pct" style="color: ${color}">${pct(v)}</span>
+              <span style="font-size: 13px; font-weight: 700; color: var(--au-brand); font-variant-numeric: tabular-nums;">~${proj.remTokStr}</span>
+            </div>
           </div>
           <div class="au-bar">
             <div class="au-bar-fill" style="width: ${(v * 100).toFixed(1)}%; background: ${color}"></div>
           </div>
           <div class="au-kv">
+            <span class="au-k">剩余预估</span>
+            <span class="au-v" style="color: var(--au-brand); font-weight: 700">约 ${proj.remTokStr} Token <span style="font-size: 10.5px; font-weight: normal; color: var(--au-text-muted)">(${proj.remCallsText})</span></span>
+            <span class="au-k">窗口总额</span>
+            <span class="au-v">约 ${proj.capStr} Token</span>
+            <span class="au-k">已用比例</span>
+            <span class="au-v">${pct(1 - v)}</span>
             <span class="au-k">重置倒计时</span>
             <span class="au-v">${resetTimeStr}</span>
             <span class="au-k">窗口类型</span>
-            <span class="au-v">${b.windowType || (b.bucketId?.includes('weekly') ? '周周期 (Weekly)' : '5小时滑动窗口')}</span>
+            <span class="au-v">${b.windowType || (isWeekly ? '周配额周期 (Weekly)' : '5小时滑动窗口 (5-Hour)')}</span>
           </div>
         `;
         grid.appendChild(bEl);
@@ -924,17 +1008,22 @@
         mEl.innerHTML = `
           <span class="au-dot" style="background: ${color}"></span>
           <span class="au-model-name" title="${b.displayName || b.bucketId}">${b.displayName || b.bucketId}</span>
-          <span class="au-v" style="color: ${color}">${pct(v, 0)}</span>
+          <span class="au-v" style="color: ${color}">${pct(v, 0)} (~${proj.remTokStr})</span>
         `;
         modelsList.appendChild(mEl);
       }
       groupsCont.appendChild(card);
     }
 
+    const proj5h = calcQuotaProjection(minRemaining, 'gemini-5h');
     const pill5h = capsuleRoot.querySelector('#agy-pill-5h');
     if (pill5h) {
       pill5h.textContent = pct(minRemaining);
       pill5h.style.color = remainingColor(minRemaining);
+    }
+    const pillTokens = capsuleRoot.querySelector('#agy-pill-tokens');
+    if (pillTokens) {
+      pillTokens.textContent = `~${proj5h.remTokStr}`;
     }
     const pillCountdown = capsuleRoot.querySelector('#agy-pill-countdown');
     if (pillCountdown) {
@@ -1287,11 +1376,13 @@
       }
 
       const windowType = b.windowType || (b.bucketId?.includes('weekly') ? '周周期重置' : '5小时滑动窗口');
+      const proj = calcQuotaProjection(v, b.bucketId || b.displayName);
 
       return `
         <tr>
           <td style="text-align: left; font-weight: 600;">${b.displayName || b.bucketId}</td>
           <td class="au-num" style="color: ${color}; font-weight: 700">${pct(v)}</td>
+          <td class="au-num" style="color: var(--au-brand); font-weight: 700">~${proj.remTokStr}</td>
           <td class="au-num">${pct(used)}</td>
           <td class="au-num" style="color: var(--au-brand); font-weight: 600">${countdown}</td>
           <td class="au-num" style="color: var(--au-text-muted)">${rTimeStr}</td>
