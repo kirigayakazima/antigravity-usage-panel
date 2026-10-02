@@ -6,6 +6,8 @@
   "main": "daemon.mjs",
   "scripts": {
     "start": "node daemon.mjs",
+    "hud": "powershell -ExecutionPolicy Bypass -NoProfile -File ./start-hud.ps1",
+    "dashboard": "start http://127.0.0.1:19388",
     "dev": "node daemon.mjs"
   },
   "keywords": [

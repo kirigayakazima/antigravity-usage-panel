@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>反重力配额胶囊 HUD</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --bg-hud: rgba(15, 23, 42, 0.92);
+      --bg-hud-card: rgba(30, 41, 59, 0.7);
+      --border-hud: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(99, 102, 241, 0.4);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #6366f1;
+      --emerald: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+      font-size: 11px;
+    }
+
+    /* 允许窗口自由拖拽的区域 */
+    .app-drag {
+      -webkit-app-region: drag;
+    }
+    .app-no-drag {
+      -webkit-app-region: no-drag;
+    }
+
+    /* 胶囊主容器 */
+    .hud-capsule-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 38px;
+      padding: 0 10px;
+      background: var(--bg-hud);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-hud);
+      border-radius: 9999px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+      cursor: grab;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .hud-capsule-bar:active {
+      cursor: grabbing;
+    }
+
+    .hud-capsule-bar:hover {
+      border-color: var(--border-accent);
+      box-shadow: 0 10px 36px 0 rgba(99, 102, 241, 0.25);
+    }
+
+    /* 展开抽屉面板 */
+    .hud-drawer {
+      display: none;
+      margin-top: 6px;
+      background: var(--bg-hud);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border-hud);
+      border-radius: 16px;
+      box-shadow: 0 16px 40px 0 rgba(0, 0, 0, 0.6);
+      padding: 12px;
+      max-height: 470px;
+      overflow-y: auto;
+    }
+
+    .hud-drawer.open {
+      display: block;
+      animation: slideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* 滚动条 */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 9999px;
+      background-color: var(--emerald);
+      box-shadow: 0 0 8px var(--emerald);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    .sub-card {
+      background: var(--bg-hud-card);
+      border: 1px solid var(--border-hud);
+      border-radius: 10px;
+      padding: 8px 10px;
+    }
+
+    .expand-btn {
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .expand-btn:hover {
+      background: rgba(99, 102, 241, 0.4);
+      color: #fff;
+    }
+    .expand-btn.rotated svg {
+      transform: rotate(180deg);
+    }
+  </style>
+</head>
+<body class="p-1">
+
+  <!-- 1. 常驻悬浮微型胶囊条 -->
+  <div id="capsule-bar" class="hud-capsule-bar app-drag">
+    
+    <!-- 状态指示点与图标 -->
+    <div class="flex items-center gap-2 app-no-drag">
+      <div id="status-dot" class="pulse-dot" title="实时连接正常 (127.0.0.1:19388)"></div>
+      <span class="text-xs">⚡</span>
+    </div>
+
+    <!-- 核心配额摘要（实时反推数据） -->
+    <div class="flex items-center gap-1.5 font-mono text-[11px] truncate flex-1 px-2 justify-center" id="capsule-summary-text">
+      <span class="text-slate-400 font-sans">5h余:</span>
+      <span id="capsule-5h-val" class="font-bold text-emerald-400">--%</span>
+      <span class="text-slate-600">·</span>
+      <span id="capsule-rem-tokens" class="text-indigo-300 font-semibold" title="预估剩余 Token 预算">~--</span>
+      <span class="text-slate-600">·</span>
+      <span id="capsule-reset-countdown" class="text-slate-300 text-[10px]" title="下次重置倒计时">--</span>
+    </div>
+
+    <!-- 右侧操作区：展开/折叠按钮 -->
+    <div class="flex items-center gap-1 app-no-drag">
+      <button id="toggle-expand-btn" class="expand-btn text-slate-300" title="点击展开/收起详情面板">
+        <svg class="w-3 h-3 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. 展开后的详情控制台（抽屉式面板） -->
+  <div id="drawer-panel" class="hud-drawer app-no-drag space-y-2.5">
+    
+    <!-- 头部：标题 + 快捷操作 -->
+    <div class="flex items-center justify-between pb-2 border-b border-white/10">
+      <div class="flex items-center gap-1.5">
+        <span class="text-sm">🛰️</span>
+        <div>
+          <div class="font-bold text-xs flex items-center gap-1">
+            <span>反重力额度监控</span>
+            <span class="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-mono">Pro</span>
+          </div>
+          <div class="text-[9px] text-slate-400">
+            LS 端口: <span id="drawer-ls-port" class="font-mono text-emerald-400">检测中...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右上角快捷按钮 -->
+      <div class="flex items-center gap-1">
+        <button id="btn-open-browser" class="px-2 py-1 rounded bg-white/10 hover:bg-indigo-600 transition text-[10px] text-slate-200 flex items-center gap-1" title="在完整浏览器打开大屏仪表盘（热力图、走势、会话）">
+          <span>大屏</span>
+          <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+          </svg>
+        </button>
+        <button id="btn-refresh" class="p-1 rounded bg-white/10 hover:bg-white/20 transition text-slate-300" title="立即刷新">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 5小时限额核心卡片 -->
+    <div class="sub-card space-y-1.5">
+      <div class="flex justify-between items-center text-[10px]">
+        <span class="text-slate-300 font-medium">✨ Five Hour Limit (5小时滚动)</span>
+        <span id="drawer-5h-val" class="font-mono font-bold text-sm text-emerald-400">--%</span>
+      </div>
+      <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+        <div id="drawer-5h-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+      <div class="flex justify-between items-center text-[9px] text-slate-400 pt-0.5">
+        <span id="drawer-5h-rem-tok" class="text-emerald-300 font-mono">剩余约: -- Token</span>
+        <span id="drawer-5h-reset" class="text-slate-300">重置: --</span>
+      </div>
+      <div class="flex justify-between items-center text-[9px] text-slate-400">
+        <span id="drawer-5h-calls" class="font-mono">还能调用 ≈ -- 次</span>
+        <span id="drawer-5h-cap" class="font-mono text-slate-500">容量 ≈ --</span>
+      </div>
+    </div>
+
+    <!-- 周限额核心卡片 -->
+    <div class="sub-card space-y-1.5">
+      <div class="flex justify-between items-center text-[10px]">
+        <span class="text-slate-300 font-medium">📅 Weekly Limit (周配额)</span>
+        <span id="drawer-weekly-val" class="font-mono font-bold text-sm text-indigo-400">--%</span>
+      </div>
+      <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+        <div id="drawer-weekly-bar" class="bg-indigo-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+      </div>
+      <div class="flex justify-between items-center text-[9px] text-slate-400 pt-0.5">
+        <span id="drawer-weekly-rem-tok" class="text-indigo-300 font-mono">剩余约: -- Token</span>
+        <span id="drawer-weekly-reset" class="text-slate-300">重置: --</span>
+      </div>
+      <div class="flex justify-between items-center text-[9px] text-slate-400">
+        <span id="drawer-weekly-calls" class="font-mono">还能调用 ≈ -- 次</span>
+        <span id="drawer-weekly-cap" class="font-mono text-slate-500">周总预算 ≈ --</span>
+      </div>
+    </div>
+
+    <!-- 热门模型状态速览 -->
+    <div class="sub-card space-y-1">
+      <div class="text-[9px] text-slate-400 font-medium pb-0.5 border-b border-white/5 flex justify-between">
+        <span>🧩 核心模型即时状态</span>
+        <span class="text-emerald-400">动态反推</span>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5 pt-1 text-[10px]">
+        <div class="flex items-center justify-between bg-black/20 p-1.5 rounded">
+          <span class="text-slate-300 truncate">Gemini 3.8 Flash</span>
+          <span id="m-38" class="font-mono text-emerald-400 font-bold ml-1">--%</span>
+        </div>
+        <div class="flex items-center justify-between bg-black/20 p-1.5 rounded">
+          <span class="text-slate-300 truncate">Gemini 3.7 Flash</span>
+          <span id="m-37" class="font-mono text-emerald-400 font-bold ml-1">--%</span>
+        </div>
+        <div class="flex items-center justify-between bg-black/20 p-1.5 rounded">
+          <span class="text-slate-300 truncate">Gemini 3.1 Pro</span>
+          <span id="m-31" class="font-mono text-emerald-400 font-bold ml-1">--%</span>
+        </div>
+        <div class="flex items-center justify-between bg-black/20 p-1.5 rounded">
+          <span class="text-slate-300 truncate">Claude 3.5 Sonnet</span>
+          <span class="font-mono text-indigo-400 font-bold ml-1">100%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 今日消耗简报 -->
+    <div class="sub-card space-y-1 text-[10px]">
+      <div class="text-[9px] text-slate-400 font-medium pb-0.5 border-b border-white/5 flex justify-between">
+        <span>📈 今日用量总览</span>
+        <span id="drawer-hit-rate" class="text-emerald-400 font-mono font-bold">命中率 --%</span>
+      </div>
+      <div class="grid grid-cols-3 gap-1 pt-1 text-center font-mono">
+        <div class="bg-black/20 p-1 rounded">
+          <div class="text-[8px] text-slate-400 font-sans">输入 Token</div>
+          <div id="stat-input" class="text-blue-400 font-bold">--</div>
+        </div>
+        <div class="bg-black/20 p-1 rounded">
+          <div class="text-[8px] text-slate-400 font-sans">缓存命中</div>
+          <div id="stat-cache" class="text-emerald-400 font-bold">--</div>
+        </div>
+        <div class="bg-black/20 p-1 rounded">
+          <div class="text-[8px] text-slate-400 font-sans">输出 Token</div>
+          <div id="stat-output" class="text-purple-400 font-bold">--</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部收起条 -->
+    <div class="pt-1 flex items-center justify-between text-[9px] text-slate-500">
+      <span id="drawer-updated-at">⚡ 3秒自动同步</span>
+      <button id="btn-collapse" class="text-slate-400 hover:text-white transition flex items-center gap-0.5">
+        <span>收起微型胶囊</span>
+        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    // 窗口尺寸定义
+    const CAPSULE_WIDTH = 290;
+    const CAPSULE_HEIGHT = 46;
+    const DRAWER_WIDTH = 340;
+    const DRAWER_HEIGHT = 500;
+
+    let isExpanded = false;
+    let RAW_DAILY = [];
+
+    function fmtNum(n) {
+      if (n === null || n === undefined || isNaN(n)) return '0';
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+      return String(Math.round(n));
+    }
+
+    function formatResetTime(isoStr) {
+      if (!isoStr) return '--';
+      const diff = new Date(isoStr).getTime() - Date.now();
+      if (diff <= 0) return '即将重置';
+      const hours = Math.floor(diff / 3600000);
+      const mins = Math.floor((diff % 3600000) / 60000);
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        const remH = hours % 24;
+        return `${days}天${remH}h`;
+      }
+      return `${hours}h${mins}m`;
+    }
+
+    // 预算与Token反推计算
+    function calcQuotaProjection(frac, windowType) {
+      const remaining = Math.max(0, Math.min(1, frac));
+      const used = 1 - remaining;
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayItem = RAW_DAILY.find(d => d.date === todayStr);
+
+      let todayTok = 0;
+      let todayGens = 0;
+      if (todayItem) {
+        const t = todayItem.tokens || {};
+        todayTok = (t.input || 0) + (t.output || 0) + (t.cacheRead || 0);
+        todayGens = todayItem.genCalls || 0;
+      }
+
+      let cap = windowType === '5h' ? 104e6 : 623e6;
+      let calls = 0;
+
+      if (used >= 0.005 && todayTok > 0) {
+        cap = todayTok / used;
+        if (todayGens > 0) {
+          calls = Math.round(todayGens * (remaining / used));
+        }
+      } else {
+        calls = Math.round((cap * remaining) / 110000);
+      }
+
+      const remTok = cap * remaining;
+      const usedTok = cap * used;
+
+      return {
+        remPct: (remaining * 100).toFixed(1) + '%',
+        usedPct: (used * 100).toFixed(1) + '%',
+        remTokStr: fmtNum(remTok),
+        capStr: fmtNum(cap),
+        usedTokStr: fmtNum(usedTok),
+        remCalls: calls
+      };
+    }
+
+    // 展开/折叠动画与原生窗口大小同步
+    function setExpanded(expand) {
+      isExpanded = expand;
+      const drawer = document.getElementById('drawer-panel');
+      const toggleBtn = document.getElementById('toggle-expand-btn');
+
+      if (isExpanded) {
+        drawer.classList.add('open');
+        toggleBtn.classList.add('rotated');
+        try {
+          window.resizeTo(DRAWER_WIDTH, DRAWER_HEIGHT);
+        } catch (e) {}
+      } else {
+        drawer.classList.remove('open');
+        toggleBtn.classList.remove('rotated');
+        try {
+          window.resizeTo(CAPSULE_WIDTH, CAPSULE_HEIGHT);
+        } catch (e) {}
+      }
+    }
+
+    document.getElementById('toggle-expand-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      setExpanded(!isExpanded);
+    });
+
+    document.getElementById('capsule-bar').addEventListener('dblclick', () => {
+      setExpanded(!isExpanded);
+    });
+
+    document.getElementById('btn-collapse').addEventListener('click', () => {
+      setExpanded(false);
+    });
+
+    document.getElementById('btn-open-browser').addEventListener('click', () => {
+      window.open('http://127.0.0.1:19388/', '_blank');
+    });
+
+    // 渲染配额数据
+    function updateUI(allData) {
+      const quota = allData.quota || allData;
+      if (!quota || !quota.groups) return;
+
+      if (quota.port) {
+        document.getElementById('drawer-ls-port').textContent = quota.port;
+      }
+
+      for (const group of quota.groups) {
+        if (group.displayName?.includes('Gemini')) {
+          for (const b of group.buckets || []) {
+            const frac = b.remainingFraction ?? 1;
+            const resetStr = formatResetTime(b.resetTime);
+            const proj = calcQuotaProjection(frac, b.window);
+
+            if (b.bucketId === 'gemini-5h') {
+              // 胶囊条微型显示
+              document.getElementById('capsule-5h-val').textContent = proj.remPct;
+              document.getElementById('capsule-rem-tokens').textContent = `~${proj.remTokStr}`;
+              document.getElementById('capsule-reset-countdown').textContent = `⏳ ${resetStr}`;
+
+              // 抽屉面板
+              document.getElementById('drawer-5h-val').textContent = proj.remPct;
+              document.getElementById('drawer-5h-bar').style.width = proj.remPct;
+              document.getElementById('drawer-5h-rem-tok').textContent = `剩余约: ${proj.remTokStr} Token`;
+              document.getElementById('drawer-5h-reset').textContent = `重置: ${resetStr}`;
+              document.getElementById('drawer-5h-calls').textContent = `还能调用 ≈ ${proj.remCalls.toLocaleString()} 次`;
+              document.getElementById('drawer-5h-cap').textContent = `容量 ≈ ${proj.capStr}`;
+
+              // 模型
+              document.getElementById('m-38').textContent = proj.remPct;
+              document.getElementById('m-37').textContent = proj.remPct;
+              document.getElementById('m-31').textContent = proj.remPct;
+
+            } else if (b.bucketId === 'gemini-weekly') {
+              document.getElementById('drawer-weekly-val').textContent = proj.remPct;
+              document.getElementById('drawer-weekly-bar').style.width = proj.remPct;
+              document.getElementById('drawer-weekly-rem-tok').textContent = `剩余约: ${proj.remTokStr} Token`;
+              document.getElementById('drawer-weekly-reset').textContent = `重置: ${resetStr}`;
+              document.getElementById('drawer-weekly-calls').textContent = `还能调用 ≈ ${proj.remCalls.toLocaleString()} 次`;
+              document.getElementById('drawer-weekly-cap').textContent = `周总预算 ≈ ${proj.capStr}`;
+            }
+          }
+        }
+      }
+
+      // 今日会话与 Token 统计
+      if (allData.conversations) {
+        RAW_DAILY = Object.values(allData.conversations.byDay || {});
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const today = RAW_DAILY.find(d => d.date === todayStr);
+        if (today) {
+          const t = today.tokens || {};
+          const inp = t.input || 0;
+          const out = t.output || 0;
+          const cache = t.cacheRead || 0;
+          const totalIn = inp + cache;
+          const hitRate = totalIn > 0 ? ((cache / totalIn) * 100).toFixed(1) : '0';
+
+          document.getElementById('drawer-hit-rate').textContent = `命中率 ${hitRate}%`;
+          document.getElementById('stat-input').textContent = fmtNum(inp);
+          document.getElementById('stat-cache').textContent = fmtNum(cache);
+          document.getElementById('stat-output').textContent = fmtNum(out);
+        }
+      }
+
+      document.getElementById('status-dot').style.backgroundColor = 'var(--emerald)';
+      document.getElementById('status-dot').style.boxShadow = '0 0 8px var(--emerald)';
+      document.getElementById('drawer-updated-at').textContent = '更新于 ' + new Date().toLocaleTimeString();
+    }
+
+    // 轮询守护进程
+    async function fetchAll() {
+      try {
+        const res = await fetch('http://127.0.0.1:19388/api/all');
+        if (res.ok) {
+          const data = await res.json();
+          updateUI(data);
+        }
+      } catch (err) {
+        document.getElementById('status-dot').style.backgroundColor = '#f59e0b';
+        document.getElementById('status-dot').style.boxShadow = '0 0 8px #f59e0b';
+      }
+    }
+
+    // 初始化
+    fetchAll();
+    setInterval(fetchAll, 3000);
+
+    document.getElementById('btn-refresh').addEventListener('click', () => {
+      const btn = document.getElementById('btn-refresh');
+      btn.classList.add('animate-spin');
+      fetchAll().finally(() => {
+        setTimeout(() => btn.classList.remove('animate-spin'), 400);
+      });
+    });
+  </script>
+</body>
+</html>

@@ -9,6 +9,7 @@
 ## 🌟 核心特性
 
 - ⚡ **秒级实时配额同步**：直连反重力内置语言服务器（Language Server），自动探测随机动态端口与 CSRF 凭证，同步官方 `RetrieveUserQuotaSummary` 权威额度（Gemini 5h 滚动、周总限额、重置倒计时）。
+- 💊 **原生极简浮动微型 HUD（状态胶囊）**：支持常驻悬浮吸附于桌面任意位置（或反重力顶栏），极低资源消耗（~50MB 内存，0% CPU），Windows 原生顶层置顶（Always on Top），双击/点击平滑展开完整控制面板。
 - 🧮 **Token 预算反推引擎**：基于当前周期的实际消耗与官方扣额比率，动态反算剩余可用 Token 数量（如 `~85.7M`）及预计还可支撑的模型生成调用次数。
 - 🗓️ **DSH 标准日历热力图**：100% 还原 GitHub / DSH 翠绿调色体系（`rgba(128,128,128,.16)` 空格至 `#16a34a` 翠绿渐变），告别死黑块，支持按会话数、步数、Token、缓存读取多维度切换。
 - 📊 **5 联核心 KPI 大屏**：总 Token 三段色条（输入 / 命中 / 输出）、缓存命中率（85%+）、模型调用次数、输出 Token（含思考与回复）、会话总数。
@@ -23,7 +24,10 @@
 ```text
 antigravity-usage-panel/
 ├── daemon.mjs          # 本地轻量守护服务 (监听 127.0.0.1:19388，自动探测反重力端口)
-├── index.html          # 监控面板核心前端大屏 (支持 3s 轮询与平滑数据渲染)
+├── index.html          # 监控面板核心前端大屏 (支持 6 标签页、热力图与走势)
+├── hud.html            # 极简原生悬浮微型胶囊 HUD (Dark Glassmorphism 磨砂毛玻璃)
+├── start-hud.cmd       # Windows 桌面一键双击唤起浮动胶囊脚本
+├── start-hud.ps1       # 浮动置顶胶囊核心启动器 (支持原生 SetWindowPos HWND_TOPMOST)
 ├── plugin.json         # 反重力插件清单配置
 ├── lib/
 │   └── conversations.js # 本地 SQLite 会话库只读解析引擎
@@ -35,22 +39,26 @@ antigravity-usage-panel/
 
 ---
 
-## 🚀 快速开始
+## 🚀 使用方式
 
-### 1. 克隆仓库与启动本地守护服务
+### 方式 A：唤起独立置顶微型胶囊 HUD (推荐 🌟)
+无需关心反重力切换会话或关闭面板，小胶囊常驻于桌面或编辑器右上角：
 ```bash
-# 克隆到本地任意目录
-git clone https://github.com/kirigayakazima/antigravity-usage-panel.git
-cd antigravity-usage-panel
+# 启动悬浮胶囊 (或者直接在资源管理器双击 start-hud.cmd)
+npm run hud
+```
+- **微型常驻态**：仅 38px 高度，显示 `🟢 5h余: 74.6% · ~65.8M · ⏳ 3h48m`，按住空白处可随心拖动；
+- **抽屉展开态**：点击右侧箭头或双击胶囊，即可平滑展开详细配额卡片与模型消耗简报；
+- **全屏大屏联动**：在展开卡片点击“大屏”，一键在浏览器打开完整分析面板。
 
-# 启动后台守护服务 (零第三方依赖，纯 Node.js 原生模块)
+### 方式 B：启动本地 Web 大屏模式
+```bash
+# 启动守护进程
 npm start
 ```
-服务将在 `http://127.0.0.1:19388` 启动，并自动锁定反重力桌面端后台运行的语言服务器端口。
+然后在浏览器访问 `http://127.0.0.1:19388` 查看 6 个标签页全量监控仪表盘。
 
-### 2. 在反重力桌面端中挂载
-将本项目软链接（或复制）至反重力全局插件目录：
-
+### 方式 C：挂载到反重力全局插件目录
 - **Windows (PowerShell)**:
   ```powershell
   New-Item -ItemType SymbolicLink -Path "$env:USERPROFILE\.gemini\config\plugins\antigravity-usage-panel" -Target (Get-Location).Path
@@ -61,7 +69,7 @@ npm start
   ```
 - **macOS / Linux**:
   ```bash
-  ln -s "$(pwd)" "$HOME/.gemini/config/plugins/antigravity-usage-panel"
+  ln -s "$(pwd)" "$HOME/.gemini/config/plugins\antigravity-usage-panel"
   ```
 
 启动反重力桌面端，在右侧辅助面板（Auxiliary Pane）的顶栏中即可常驻查看 **`Antigravity Quota Dashboard`** 监控大屏。

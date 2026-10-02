@@ -205,6 +205,32 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/' || url.pathname === '/index.html') {
+    try {
+      const filePath = join(process.cwd(), 'index.html');
+      const content = readFileSync(filePath, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(content);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Error loading index.html: ' + e.message);
+    }
+    return;
+  }
+
+  if (url.pathname === '/hud' || url.pathname === '/hud.html') {
+    try {
+      const filePath = join(process.cwd(), 'hud.html');
+      const content = readFileSync(filePath, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(content);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Error loading hud.html: ' + e.message);
+    }
+    return;
+  }
+
   res.writeHead(404, { 'Content-Type': 'text/plain' });
   res.end('Not Found');
 });
