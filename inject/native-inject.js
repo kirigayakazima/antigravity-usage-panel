@@ -1,24 +1,66 @@
 // =========================================================================
-// Antigravity Native UI Quota Capsule & In-Page Modal (v3.0)
-// 1. 原生纯白自适应胶囊 (告别黑块，完美融合纯白反重力顶栏)
-// 2. 当前页面全屏/居中大模态大屏 (沉浸式 6 标签页，告别外部浏览器跳转)
-// 3. 官方 Language Server 权威同源直连 (永不掉线)
+// Antigravity Native UI Quota Capsule & In-Page Modal (v4.0)
+// 1. 生命周期自愈伴随钩子 (检查19388，已启动则跳过，未启动自动拉起)
+// 2. 纯白轻奢极简胶囊 (彻底告别黑色方块，完美融入反重力浅色界面)
+// 3. 当前页面全屏/居中大屏看板 (告别外部浏览器跳转，沉浸式体验)
+// 4. 官方权威直连 + 离线会话统计双引擎
 // =========================================================================
 
 (function initAntigravityQuotaInjection() {
-  if (window.__ANTIGRAVITY_QUOTA_INJECTED_V3__) return;
-  window.__ANTIGRAVITY_QUOTA_INJECTED_V3__ = true;
+  if (window.__ANTIGRAVITY_QUOTA_INJECTED_V4__) return;
+  window.__ANTIGRAVITY_QUOTA_INJECTED_V4__ = true;
 
-  console.log('[Antigravity Quota HUD v3.0] Initializing light-theme native in-page modal...');
+  console.log('[Antigravity Quota HUD v4.0] Initializing with Lifecycle Hook & Pure White Modal...');
 
-  // 1. 注入自适应 CSS 样式 (默认浅色，优雅纯白毛玻璃，自适应深色)
+  // -----------------------------------------------------------------------
+  // 0. 生命周期伴随自愈钩子 (启动检查：已启动则跳过，未启动自动静默拉起)
+  // -----------------------------------------------------------------------
+  function checkAndSpawnDaemon() {
+    try {
+      const http = require('node:http');
+      const req = http.get('http://127.0.0.1:19388/api/ping', (res) => {
+        // 19388 正在正常运行，跳过
+      });
+      req.on('error', () => {
+        // 未启动，由反重力客户端自动静默拉起 daemon.mjs
+        try {
+          const { spawn } = require('node:child_process');
+          const { existsSync } = require('node:fs');
+          const daemonPath = 'd:\\CodePackage\\DSPlug\\antigravity-usage-panel\\daemon.mjs';
+          if (existsSync(daemonPath)) {
+            spawn('node', [daemonPath], {
+              cwd: 'd:\\CodePackage\\DSPlug\\antigravity-usage-panel',
+              detached: true,
+              stdio: 'ignore',
+              windowsHide: true
+            }).unref();
+            console.log('[Antigravity Lifecycle Hook] Quota daemon automatically spawned.');
+          }
+        } catch (spawnErr) {}
+      });
+      req.setTimeout(800, () => req.destroy());
+    } catch (e) {}
+  }
+
+  // 立即检查一次，并且每 15 秒保活探测一次
+  checkAndSpawnDaemon();
+  setInterval(checkAndSpawnDaemon, 15000);
+
+  // 清除任何旧版遗留的黑卡片和旧 DOM 节点
+  try {
+    document.querySelectorAll('#agy-popup-card, #agy-quota-capsule-root, #agy-inpage-modal-overlay').forEach(el => el.remove());
+  } catch (e) {}
+
+  // -----------------------------------------------------------------------
+  // 1. 注入自适应纯白 CSS 样式
+  // -----------------------------------------------------------------------
   const styleEl = document.createElement('style');
   styleEl.textContent = `
     :root {
       --agy-pill-bg: #ffffff;
       --agy-pill-hover: #f8fafc;
       --agy-pill-border: #e2e8f0;
-      --agy-pill-text: #1e293b;
+      --agy-pill-text: #0f172a;
       --agy-pill-muted: #64748b;
       --agy-pill-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
       --agy-modal-bg: #ffffff;
@@ -33,16 +75,16 @@
 
     @media (prefers-color-scheme: dark) {
       :root {
-        --agy-pill-bg: rgba(30, 41, 59, 0.85);
+        --agy-pill-bg: rgba(30, 41, 59, 0.9);
         --agy-pill-hover: rgba(51, 65, 85, 0.95);
         --agy-pill-border: rgba(255, 255, 255, 0.15);
         --agy-pill-text: #f8fafc;
         --agy-pill-muted: #94a3b8;
         --agy-pill-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-        --agy-modal-bg: #131418;
-        --agy-card-bg: #1a1d24;
+        --agy-modal-bg: #14161b;
+        --agy-card-bg: #1c1f26;
         --agy-card-subtle: #121316;
-        --agy-border-color: #262a33;
+        --agy-border-color: #272b35;
         --agy-text-main: #f8fafc;
         --agy-text-muted: #94a3b8;
         --agy-primary: #6366f1;
@@ -50,7 +92,7 @@
       }
     }
 
-    /* 纯白轻奢胶囊主条 */
+    /* 纯白高级状态胶囊 */
     .agy-pill-bar {
       display: inline-flex !important;
       align-items: center !important;
@@ -132,7 +174,7 @@
       opacity: 1 !important;
     }
 
-    /* 模态大屏主窗体 */
+    /* 模态大屏主窗体 (浅色纯白高质感) */
     .agy-modal-window {
       width: 90% !important;
       max-width: 880px !important;
@@ -141,7 +183,7 @@
       background: var(--agy-modal-bg) !important;
       border: 1px solid var(--agy-border-color) !important;
       border-radius: 14px !important;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25) !important;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2) !important;
       display: flex !important;
       flex-direction: column !important;
       overflow: hidden !important;
@@ -165,7 +207,7 @@
     }
 
     .agy-tab-btn {
-      padding: 7px 14px !important;
+      padding: 8px 14px !important;
       font-size: 12px !important;
       font-weight: 500 !important;
       color: var(--agy-text-muted) !important;
@@ -214,258 +256,250 @@
   `;
   document.head ? document.head.appendChild(styleEl) : document.addEventListener('DOMContentLoaded', () => document.head.appendChild(styleEl));
 
-  // 2. 挂载胶囊 DOM 节点
-  let capsuleRoot = document.getElementById('agy-quota-capsule-root');
-  if (!capsuleRoot) {
-    capsuleRoot = document.createElement('div');
-    capsuleRoot.id = 'agy-quota-capsule-root';
-    capsuleRoot.className = 'floating-mode';
-    capsuleRoot.innerHTML = `
-      <div id="agy-pill-bar" class="agy-pill-bar" title="点击在当前页面展开全屏配额与用量大屏">
-        <div id="agy-dot" class="agy-dot"></div>
-        <span style="color: var(--agy-pill-muted); font-size: 11px">5h余:</span>
-        <b id="agy-pill-5h" style="color: var(--agy-emerald); font-family: monospace; font-size: 12px; font-weight: 700">--%</b>
-        <span style="opacity: 0.3">·</span>
-        <span id="agy-pill-tokens" style="color: var(--agy-primary); font-family: monospace; font-size: 12px; font-weight: 600">~--</span>
-        <span style="opacity: 0.3">·</span>
-        <span id="agy-pill-countdown" style="color: var(--agy-pill-muted); font-size: 11px">⏳ --</span>
-      </div>
-    `;
-    document.body.appendChild(capsuleRoot);
-  }
+  // -----------------------------------------------------------------------
+  // 2. 构建纯白胶囊 DOM 根节点
+  // -----------------------------------------------------------------------
+  const capsuleRoot = document.createElement('div');
+  capsuleRoot.id = 'agy-quota-capsule-root';
+  capsuleRoot.className = 'floating-mode';
+  capsuleRoot.innerHTML = `
+    <div id="agy-pill-bar" class="agy-pill-bar" title="点击在当前页面直接展开全屏配额与用量大屏">
+      <div id="agy-dot" class="agy-dot"></div>
+      <span style="color: var(--agy-pill-muted); font-size: 11px">5h余:</span>
+      <b id="agy-pill-5h" style="color: var(--agy-emerald); font-family: monospace; font-size: 12px; font-weight: 700">--%</b>
+      <span style="opacity: 0.3">·</span>
+      <span id="agy-pill-tokens" style="color: var(--agy-primary); font-family: monospace; font-size: 12px; font-weight: 600">~--</span>
+      <span style="opacity: 0.3">·</span>
+      <span id="agy-pill-countdown" style="color: var(--agy-pill-muted); font-size: 11px">⏳ --</span>
+    </div>
+  `;
+  document.body.appendChild(capsuleRoot);
 
+  // -----------------------------------------------------------------------
   // 3. 构建当前页面直接弹出的沉浸式大屏模态 (In-Page Modal)
-  let modalOverlay = document.getElementById('agy-inpage-modal-overlay');
-  if (!modalOverlay) {
-    modalOverlay = document.createElement('div');
-    modalOverlay.id = 'agy-inpage-modal-overlay';
-    modalOverlay.innerHTML = `
-      <div class="agy-modal-window" id="agy-modal-win">
+  // -----------------------------------------------------------------------
+  const modalOverlay = document.createElement('div');
+  modalOverlay.id = 'agy-inpage-modal-overlay';
+  modalOverlay.innerHTML = `
+    <div class="agy-modal-window" id="agy-modal-win">
+      
+      <!-- 模态顶栏：标题 + 状态指示 + 全屏切换 + 关闭 -->
+      <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="font-size: 16px">🛰️</span>
+          <div>
+            <div style="display: flex; align-items: center; gap: 6px">
+              <span style="font-weight: 700; font-size: 13px">反重力额度 / 用量监控面板</span>
+              <span style="font-size: 10px; padding: 1px 6px; border-radius: 9999px; background: rgba(16,185,129,0.15); color: var(--agy-emerald); border: 1px solid rgba(16,185,129,0.3); font-weight: 600">
+                ● 官方 LS 直连 (端口 <span id="modal-ls-port">检测中</span>)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右上角操作按钮 -->
+        <div style="display: flex; align-items: center; gap: 6px">
+          <button id="modal-btn-refresh" style="background: transparent; border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer" title="刷新数据">↻ 刷新</button>
+          <button id="modal-btn-fullscreen" style="background: transparent; border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer" title="切换全屏/居中视窗">⛶ 展开</button>
+          <button id="modal-btn-close" style="background: transparent; border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer" title="关闭 (Esc)">✕</button>
+        </div>
+      </div>
+
+      <!-- 5 联核心大 KPI 卡片 -->
+      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 12px 16px 8px 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
+        <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
+          <div style="font-size: 10px; color: var(--agy-text-muted)">总 Token</div>
+          <div style="font-size: 14px; font-weight: 700; font-family: monospace; margin: 2px 0" id="kpi-tok-total">--</div>
+          <div style="font-size: 9px; color: var(--agy-text-muted); font-family: monospace">输入+命中+输出</div>
+        </div>
+        <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
+          <div style="font-size: 10px; color: var(--agy-text-muted)">缓存命中率</div>
+          <div style="font-size: 15px; font-weight: 800; font-family: monospace; color: var(--agy-emerald); margin: 2px 0" id="kpi-hit-rate">86.4%</div>
+          <div style="font-size: 9px; color: var(--agy-text-muted)">高效上下文缓存</div>
+        </div>
+        <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
+          <div style="font-size: 10px; color: var(--agy-text-muted)">模型生成次数</div>
+          <div style="font-size: 15px; font-weight: 700; font-family: monospace; color: var(--agy-primary); margin: 2px 0" id="kpi-gens">--</div>
+          <div style="font-size: 9px; color: var(--agy-text-muted)">累计生成对话</div>
+        </div>
+        <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
+          <div style="font-size: 10px; color: var(--agy-text-muted)">输出 Token</div>
+          <div style="font-size: 15px; font-weight: 700; font-family: monospace; color: #9333ea; margin: 2px 0" id="kpi-output">--</div>
+          <div style="font-size: 9px; color: var(--agy-text-muted)">深度思考 + 回复</div>
+        </div>
+        <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
+          <div style="font-size: 10px; color: var(--agy-text-muted)">会话总数</div>
+          <div style="font-size: 15px; font-weight: 700; font-family: monospace; color: #0284c7; margin: 2px 0" id="kpi-convs">--</div>
+          <div style="font-size: 9px; color: var(--agy-text-muted)">本地 SQLite 记录</div>
+        </div>
+      </div>
+
+      <!-- 6 个导航标签栏 -->
+      <div style="display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
+        <button class="agy-tab-btn active" data-tab="tab-quota">额度配额</button>
+        <button class="agy-tab-btn" data-tab="tab-trend">走势曲线</button>
+        <button class="agy-tab-btn" data-tab="tab-heatmap">日历热力图</button>
+        <button class="agy-tab-btn" data-tab="tab-models">模型汇总</button>
+        <button class="agy-tab-btn" data-tab="tab-sessions">会话列表</button>
+      </div>
+
+      <!-- 标签页主体内容区 -->
+      <div style="flex: 1; overflow-y: auto; padding: 16px; background: var(--agy-modal-bg)">
         
-        <!-- 模态顶栏：标题 + 状态指示 + 全屏切换 + 关闭 -->
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
-          <div style="display: flex; align-items: center; gap: 8px">
-            <span style="font-size: 16px">🛰️</span>
-            <div>
-              <div style="display: flex; align-items: center; gap: 6px">
-                <span style="font-weight: 700; font-size: 13px">反重力额度 / 用量监控面板</span>
-                <span style="font-size: 10px; padding: 1px 6px; border-radius: 9999px; background: rgba(16,185,129,0.15); color: var(--agy-emerald); border: 1px solid rgba(16,185,129,0.3); font-weight: 600">
-                  ● 官方 LS 直连 (端口 <span id="modal-ls-port">检测中</span>)
-                </span>
-              </div>
+        <!-- Tab 1: 额度配额 -->
+        <div id="tab-quota" class="agy-tab-pane active" style="display: flex; flex-direction: column; gap: 12px">
+          <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+              <span style="font-weight: 600; font-size: 13px">✨ Five Hour Limit (5小时滚动配额)</span>
+              <b id="m-5h-val" style="color: var(--agy-emerald); font-family: monospace; font-size: 16px">--%</b>
+            </div>
+            <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.08); border-radius: 9999px; overflow: hidden; margin-bottom: 8px">
+              <div id="m-5h-bar" style="height: 100%; width: 0%; background: #10b981; border-radius: 9999px; transition: width 0.3s"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--agy-text-muted)">
+              <span id="m-5h-rem">剩余约: -- Token</span>
+              <span id="m-5h-reset">重置: --</span>
+              <span id="m-5h-calls" style="font-family: monospace">预计还能调用 ≈ -- 次</span>
+              <span id="m-5h-cap" style="font-family: monospace">5h预算容量 ≈ --</span>
             </div>
           </div>
 
-          <!-- 右上角操作按钮 -->
-          <div style="display: flex; align-items: center; gap: 6px">
-            <button id="modal-btn-refresh" style="background: transparent; border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer" title="刷新数据">↻ 刷新</button>
-            <button id="modal-btn-fullscreen" style="background: transparent; border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer" title="切换全屏/视窗">⛶ 展开</button>
-            <button id="modal-btn-close" style="background: transparent; border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer" title="关闭 (Esc)">✕</button>
+          <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+              <span style="font-weight: 600; font-size: 13px">📅 Weekly Limit (周总预算)</span>
+              <b id="m-w-val" style="color: var(--agy-primary); font-family: monospace; font-size: 16px">--%</b>
+            </div>
+            <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.08); border-radius: 9999px; overflow: hidden; margin-bottom: 8px">
+              <div id="m-w-bar" style="height: 100%; width: 0%; background: #6366f1; border-radius: 9999px; transition: width 0.3s"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--agy-text-muted)">
+              <span id="m-w-rem">剩余约: -- Token</span>
+              <span id="m-w-reset">重置: --</span>
+              <span id="m-w-calls" style="font-family: monospace">预计还能调用 ≈ -- 次</span>
+              <span id="m-w-cap" style="font-family: monospace">周总预算 ≈ --</span>
+            </div>
+          </div>
+
+          <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
+            <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px">🧩 各大模型实时状态 (动态反推)</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 11px">
+              <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
+                <span>Gemini 3.8 Flash</span>
+                <b id="mod-38" style="color: var(--agy-emerald); font-family: monospace">--%</b>
+              </div>
+              <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
+                <span>Gemini 3.7 Flash</span>
+                <b id="mod-37" style="color: var(--agy-emerald); font-family: monospace">--%</b>
+              </div>
+              <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
+                <span>Gemini 3.1 Pro</span>
+                <b id="mod-31" style="color: var(--agy-emerald); font-family: monospace">--%</b>
+              </div>
+              <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
+                <span>Claude 3.5 Sonnet</span>
+                <b style="color: var(--agy-primary); font-family: monospace">100%</b>
+              </div>
+              <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
+                <span>Claude 3.7 Sonnet</span>
+                <b style="color: var(--agy-primary); font-family: monospace">100%</b>
+              </div>
+              <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
+                <span>GPT-OSS 120B</span>
+                <b style="color: var(--agy-primary); font-family: monospace">100%</b>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- 5 联核心大 KPI 卡片 -->
-        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 12px 16px 8px 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
-          <!-- 总 Token -->
-          <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
-            <div style="font-size: 10px; color: var(--agy-text-muted)">总 Token</div>
-            <div style="font-size: 14px; font-weight: 700; font-family: monospace; margin: 2px 0" id="kpi-tok-total">--</div>
-            <div style="font-size: 9px; color: var(--agy-text-muted); font-family: monospace">输入+命中+输出</div>
-          </div>
-          <!-- 缓存命中率 -->
-          <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
-            <div style="font-size: 10px; color: var(--agy-text-muted)">缓存命中率</div>
-            <div style="font-size: 15px; font-weight: 800; font-family: monospace; color: var(--agy-emerald); margin: 2px 0" id="kpi-hit-rate">86.4%</div>
-            <div style="font-size: 9px; color: var(--agy-text-muted)">高效上下文缓存</div>
-          </div>
-          <!-- 模型生成次数 -->
-          <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
-            <div style="font-size: 10px; color: var(--agy-text-muted)">模型生成次数</div>
-            <div style="font-size: 15px; font-weight: 700; font-family: monospace; color: var(--agy-primary); margin: 2px 0" id="kpi-gens">--</div>
-            <div style="font-size: 9px; color: var(--agy-text-muted)">累计生成对话</div>
-          </div>
-          <!-- 输出 Token -->
-          <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
-            <div style="font-size: 10px; color: var(--agy-text-muted)">输出 Token</div>
-            <div style="font-size: 15px; font-weight: 700; font-family: monospace; color: #9333ea; margin: 2px 0" id="kpi-output">--</div>
-            <div style="font-size: 9px; color: var(--agy-text-muted)">深度思考 + 回复</div>
-          </div>
-          <!-- 会话总数 -->
-          <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
-            <div style="font-size: 10px; color: var(--agy-text-muted)">会话总数</div>
-            <div style="font-size: 15px; font-weight: 700; font-family: monospace; color: #0284c7; margin: 2px 0" id="kpi-convs">--</div>
-            <div style="font-size: 9px; color: var(--agy-text-muted)">本地 SQLite 记录</div>
+        <!-- Tab 2: 走势曲线 -->
+        <div id="tab-trend" class="agy-tab-pane" style="display: none">
+          <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
+            <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px">📈 配额时序走势曲线</div>
+            <svg viewBox="0 0 500 160" style="width: 100%; height: 160px; overflow: visible">
+              <line x1="30" y1="20" x2="480" y2="20" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
+              <line x1="30" y1="60" x2="480" y2="60" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
+              <line x1="30" y1="100" x2="480" y2="100" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
+              <line x1="30" y1="140" x2="480" y2="140" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
+              <path d="M 30 24 Q 150 25, 270 26 T 400 27 T 480 28" fill="none" stroke="#6366f1" stroke-width="2.5" />
+              <path d="M 30 24 Q 150 30, 270 36 T 400 44 T 480 48" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="4 3" />
+            </svg>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 10px; color: var(--agy-text-muted)">
+              <span style="color: var(--agy-primary)" id="trend-lbl-w">● 周总限额 (95.7%)</span>
+              <span style="color: var(--agy-emerald)" id="trend-lbl-5h">● 5小时滚动 (74.6%)</span>
+              <span style="color: var(--agy-emerald)">🟢 状态极佳</span>
+            </div>
           </div>
         </div>
 
-        <!-- 6 个导航标签栏 -->
-        <div style="display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
-          <button class="agy-tab-btn active" data-tab="tab-quota">额度配额</button>
-          <button class="agy-tab-btn" data-tab="tab-trend">走势曲线</button>
-          <button class="agy-tab-btn" data-tab="tab-heatmap">日历热力图</button>
-          <button class="agy-tab-btn" data-tab="tab-models">模型汇总</button>
-          <button class="agy-tab-btn" data-tab="tab-sessions">会话列表</button>
+        <!-- Tab 3: 日历热力图 -->
+        <div id="tab-heatmap" class="agy-tab-pane" style="display: none">
+          <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+              <div style="font-weight: 600; font-size: 13px">🗓️ 近 182 天日历热力图 (GitHub / DSH 翠绿调色)</div>
+              <div style="font-size: 11px; color: var(--agy-text-muted)" id="heat-sub-info">近 182 天用量统计</div>
+            </div>
+            <div style="overflow-x: auto; padding-bottom: 8px">
+              <div id="agy-heat-container" class="agy-heat-grid"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--agy-text-muted); border-top: 1px solid var(--agy-border-color); padding-top: 8px">
+              <span>SQLite 本地会话离线生成</span>
+              <div style="display: flex; align-items: center; gap: 4px">
+                <span>少</span>
+                <span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(128,128,128,0.16)"></span>
+                <span style="width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb, #16a34a 28%, transparent)"></span>
+                <span style="width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb, #16a34a 52%, transparent)"></span>
+                <span style="width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb, #16a34a 76%, transparent)"></span>
+                <span style="width: 10px; height: 10px; border-radius: 2px; background: #16a34a"></span>
+                <span>多</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- 标签页主体内容区 -->
-        <div style="flex: 1; overflow-y: auto; padding: 16px; background: var(--agy-modal-bg)">
-          
-          <!-- Tab 1: 额度配额 -->
-          <div id="tab-quota" class="agy-tab-pane active" style="display: flex; flex-direction: column; gap: 12px">
-            <!-- 5小时滚动核心卡片 -->
-            <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
-                <span style="font-weight: 600; font-size: 13px">✨ Five Hour Limit (5小时滚动配额)</span>
-                <b id="m-5h-val" style="color: var(--agy-emerald); font-family: monospace; font-size: 16px">--%</b>
-              </div>
-              <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.08); border-radius: 9999px; overflow: hidden; margin-bottom: 8px">
-                <div id="m-5h-bar" style="height: 100%; width: 0%; background: #10b981; border-radius: 9999px; transition: width 0.3s"></div>
-              </div>
-              <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--agy-text-muted)">
-                <span id="m-5h-rem">剩余约: -- Token</span>
-                <span id="m-5h-reset">重置: --</span>
-                <span id="m-5h-calls" style="font-family: monospace">预计还能调用 ≈ -- 次</span>
-                <span id="m-5h-cap" style="font-family: monospace">5h预算容量 ≈ --</span>
-              </div>
-            </div>
+        <!-- Tab 4: 模型汇总 -->
+        <div id="tab-models" class="agy-tab-pane" style="display: none">
+          <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
+            <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px">📊 按模型详细消耗统计</div>
+            <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--agy-border-color); color: var(--agy-text-muted)">
+                  <th style="padding: 6px 0">模型名称</th>
+                  <th style="padding: 6px 0; text-align: right">生成次数</th>
+                  <th style="padding: 6px 0; text-align: right">输入 Token</th>
+                  <th style="padding: 6px 0; text-align: right">输出 Token</th>
+                  <th style="padding: 6px 0; text-align: right">缓存命中</th>
+                  <th style="padding: 6px 0; text-align: right">命中率</th>
+                </tr>
+              </thead>
+              <tbody id="models-table-rows">
+                <tr><td colspan="6" style="padding: 16px; text-align: center; color: var(--agy-text-muted)">正在加载模型汇总...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-            <!-- 周限额核心卡片 -->
-            <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
-                <span style="font-weight: 600; font-size: 13px">📅 Weekly Limit (周总预算)</span>
-                <b id="m-w-val" style="color: var(--agy-primary); font-family: monospace; font-size: 16px">--%</b>
-              </div>
-              <div style="width: 100%; height: 8px; background: rgba(0,0,0,0.08); border-radius: 9999px; overflow: hidden; margin-bottom: 8px">
-                <div id="m-w-bar" style="height: 100%; width: 0%; background: #6366f1; border-radius: 9999px; transition: width 0.3s"></div>
-              </div>
-              <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--agy-text-muted)">
-                <span id="m-w-rem">剩余约: -- Token</span>
-                <span id="m-w-reset">重置: --</span>
-                <span id="m-w-calls" style="font-family: monospace">预计还能调用 ≈ -- 次</span>
-                <span id="m-w-cap" style="font-family: monospace">周总预算 ≈ --</span>
-              </div>
+        <!-- Tab 5: 会话列表 -->
+        <div id="tab-sessions" class="agy-tab-pane" style="display: none">
+          <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; justify-content: space-between; align-items: center">
+              <span style="font-weight: 600; font-size: 13px">💬 历史会话消耗检索</span>
+              <input id="modal-sess-search" type="text" placeholder="输入关键词搜索会话..." style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 8px; border-radius: 6px; font-size: 11px; width: 200px" />
             </div>
-
-            <!-- 核心模型即时状态卡片 -->
-            <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
-              <div style="font-weight: 600; font-size: 12px; margin-bottom: 10px">🧩 各大模型实时状态 (动态反推)</div>
-              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 11px">
-                <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
-                  <span>Gemini 3.8 Flash</span>
-                  <b id="mod-38" style="color: var(--agy-emerald); font-family: monospace">--%</b>
-                </div>
-                <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
-                  <span>Gemini 3.7 Flash</span>
-                  <b id="mod-37" style="color: var(--agy-emerald); font-family: monospace">--%</b>
-                </div>
-                <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
-                  <span>Gemini 3.1 Pro</span>
-                  <b id="mod-31" style="color: var(--agy-emerald); font-family: monospace">--%</b>
-                </div>
-                <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
-                  <span>Claude 3.5 Sonnet</span>
-                  <b style="color: var(--agy-primary); font-family: monospace">100%</b>
-                </div>
-                <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
-                  <span>Claude 3.7 Sonnet</span>
-                  <b style="color: var(--agy-primary); font-family: monospace">100%</b>
-                </div>
-                <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); padding: 8px 10px; border-radius: 6px; display: flex; justify-content: space-between">
-                  <span>GPT-OSS 120B</span>
-                  <b style="color: var(--agy-primary); font-family: monospace">100%</b>
-                </div>
-              </div>
+            <div id="modal-sess-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto">
+              <div style="text-align: center; padding: 20px; font-size: 11px; color: var(--agy-text-muted)">正在读取本地 SQLite 会话...</div>
             </div>
           </div>
-
-          <!-- Tab 2: 走势曲线 -->
-          <div id="tab-trend" class="agy-tab-pane" style="display: none">
-            <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
-              <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px">📈 配额时序走势曲线</div>
-              <svg viewBox="0 0 500 160" style="width: 100%; height: 160px; overflow: visible">
-                <line x1="30" y1="20" x2="480" y2="20" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
-                <line x1="30" y1="60" x2="480" y2="60" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
-                <line x1="30" y1="100" x2="480" y2="100" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
-                <line x1="30" y1="140" x2="480" y2="140" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
-                <path d="M 30 24 Q 150 25, 270 26 T 400 27 T 480 28" fill="none" stroke="#6366f1" stroke-width="2.5" />
-                <path d="M 30 24 Q 150 30, 270 36 T 400 44 T 480 48" fill="none" stroke="#10b981" stroke-width="2" stroke-dasharray="4 3" />
-              </svg>
-              <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 10px; color: var(--agy-text-muted)">
-                <span style="color: var(--agy-primary)" id="trend-lbl-w">● 周总限额 (95.7%)</span>
-                <span style="color: var(--agy-emerald)" id="trend-lbl-5h">● 5小时滚动 (74.6%)</span>
-                <span style="color: var(--agy-emerald)">🟢 状态极佳</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab 3: 日历热力图 -->
-          <div id="tab-heatmap" class="agy-tab-pane" style="display: none">
-            <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
-                <div style="font-weight: 600; font-size: 13px">🗓️ 近 182 天日历热力图 (GitHub / DSH 翠绿调色)</div>
-                <div style="font-size: 11px; color: var(--agy-text-muted)" id="heat-sub-info">近 182 天用量统计</div>
-              </div>
-              <div style="overflow-x: auto; padding-bottom: 8px">
-                <div id="agy-heat-container" class="agy-heat-grid"></div>
-              </div>
-              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--agy-text-muted); border-top: 1px solid var(--agy-border-color); padding-top: 8px">
-                <span>SQLite 本地会话离线生成</span>
-                <div style="display: flex; align-items: center; gap: 4px">
-                  <span>少</span>
-                  <span style="width: 10px; height: 10px; border-radius: 2px; background: rgba(128,128,128,0.16)"></span>
-                  <span style="width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb, #16a34a 28%, transparent)"></span>
-                  <span style="width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb, #16a34a 52%, transparent)"></span>
-                  <span style="width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb, #16a34a 76%, transparent)"></span>
-                  <span style="width: 10px; height: 10px; border-radius: 2px; background: #16a34a"></span>
-                  <span>多</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Tab 4: 模型汇总 -->
-          <div id="tab-models" class="agy-tab-pane" style="display: none">
-            <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
-              <div style="font-weight: 600; font-size: 13px; margin-bottom: 8px">📊 按模型详细消耗统计</div>
-              <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse">
-                <thead>
-                  <tr style="border-bottom: 1px solid var(--agy-border-color); color: var(--agy-text-muted)">
-                    <th style="padding: 6px 0">模型名称</th>
-                    <th style="padding: 6px 0; text-align: right">生成次数</th>
-                    <th style="padding: 6px 0; text-align: right">输入 Token</th>
-                    <th style="padding: 6px 0; text-align: right">输出 Token</th>
-                    <th style="padding: 6px 0; text-align: right">缓存命中</th>
-                    <th style="padding: 6px 0; text-align: right">命中率</th>
-                  </tr>
-                </thead>
-                <tbody id="models-table-rows">
-                  <tr><td colspan="6" style="padding: 16px; text-align: center; color: var(--agy-text-muted)">正在加载模型汇总...</td></tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- Tab 5: 会话列表 -->
-          <div id="tab-sessions" class="agy-tab-pane" style="display: none">
-            <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px; display: flex; flex-direction: column; gap: 8px">
-              <div style="display: flex; justify-content: space-between; align-items: center">
-                <span style="font-weight: 600; font-size: 13px">💬 历史会话消耗检索</span>
-                <input id="modal-sess-search" type="text" placeholder="输入关键词搜索会话..." style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 8px; border-radius: 6px; font-size: 11px; width: 200px" />
-              </div>
-              <div id="modal-sess-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto">
-                <div style="text-align: center; padding: 20px; font-size: 11px; color: var(--agy-text-muted)">正在读取本地 SQLite 会话...</div>
-              </div>
-            </div>
-          </div>
-
         </div>
 
       </div>
-    `;
-    document.body.appendChild(modalOverlay);
-  }
 
+    </div>
+  `;
+  document.body.appendChild(modalOverlay);
+
+  // -----------------------------------------------------------------------
   // 4. 智能吸附挂载：优先挂载到图 3 所示的 Tab Header 栏
+  // -----------------------------------------------------------------------
   function tryEmbedIntoToolbar() {
     const candidateBars = document.querySelectorAll('div, header');
     let targetContainer = null;
@@ -503,7 +537,9 @@
     }
   }
 
-  // 5. 模态窗口与 Tab 交互
+  // -----------------------------------------------------------------------
+  // 5. 模态窗口与 Tab 交互 (点击胶囊直接呼出大模态，绝无外部跳转)
+  // -----------------------------------------------------------------------
   const pillBar = document.getElementById('agy-pill-bar');
   const overlay = document.getElementById('agy-inpage-modal-overlay');
   const modalWin = document.getElementById('agy-modal-win');
@@ -521,6 +557,7 @@
     overlay.classList.remove('open');
   }
 
+  // 关键：点击胶囊，直接触发当前页面内居中大屏！
   pillBar.addEventListener('click', (e) => {
     e.stopPropagation();
     openModal();
@@ -576,7 +613,9 @@
     });
   });
 
-  // 6. 格式化辅助
+  // -----------------------------------------------------------------------
+  // 6. 格式化与计算辅助
+  // -----------------------------------------------------------------------
   function fmtNum(n) {
     if (n === null || n === undefined || isNaN(n)) return '0';
     if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
@@ -617,7 +656,9 @@
     };
   }
 
+  // -----------------------------------------------------------------------
   // 7. 渲染配额数据
+  // -----------------------------------------------------------------------
   function updateQuotaDOM(quota) {
     if (!quota || !quota.groups) return;
 
@@ -670,7 +711,9 @@
     }
   }
 
+  // -----------------------------------------------------------------------
   // 8. 官方权威直连
+  // -----------------------------------------------------------------------
   async function fetchAuthorityData() {
     let success = false;
     try {
@@ -715,7 +758,9 @@
     }
   }
 
+  // -----------------------------------------------------------------------
   // 9. 离线会话库与热力图渲染
+  // -----------------------------------------------------------------------
   function renderHeatmap() {
     const container = document.getElementById('agy-heat-container');
     if (!container) return;
@@ -847,8 +892,11 @@
     } catch (e) {}
   }
 
-  // 10. 初始化与自愈监听
+  // -----------------------------------------------------------------------
+  // 10. 初始化与持续自愈监听
+  // -----------------------------------------------------------------------
   fetchAuthorityData();
+  fetchOfflineData();
   setInterval(fetchAuthorityData, 3000);
   setInterval(tryEmbedIntoToolbar, 1000);
 

@@ -33,9 +33,10 @@ if (!existsSync(bakPath)) {
   console.log(`🛡️ 检测到已存在的纯净备份: ${bakPath}`);
 }
 
-// 2. 解包当前 asar 到临时目录 (匹配同级的 app.asar.unpacked 目录)
+// 2. 永远从官方纯净备份还原后再解包 (保证绝对无任何旧版残留)
+copyFileSync(bakPath, asarPath);
 const tempExtractDir = mkdtempSync(join(tmpdir(), 'agy-asar-inject-'));
-console.log(`📂 正在解包 app.asar 到临时目录: ${tempExtractDir}...`);
+console.log(`📂 正在解包官方纯净 app.asar 到临时目录: ${tempExtractDir}...`);
 asar.extractAll(asarPath, tempExtractDir);
 
 // 3. 注入 native-inject.js 到 dist/preload.js
@@ -46,10 +47,17 @@ if (!existsSync(preloadPath)) {
   process.exit(1);
 }
 
-const originalPreload = readFileSync(preloadPath, 'utf8');
+let originalPreload = readFileSync(preloadPath, 'utf8');
+// 安全清洗任何可能的历史注入痕迹
+const markerIdx = originalPreload.indexOf('initAntigravityQuotaInjection');
+if (markerIdx > 0) {
+  const cutoff = originalPreload.lastIndexOf('\n', markerIdx);
+  originalPreload = originalPreload.slice(0, cutoff > 0 ? cutoff : markerIdx).trim();
+}
+
 const injectCode = readFileSync(injectJsPath, 'utf8');
 
-console.log('💉 正在向 dist/preload.js 注入顶栏胶囊 HUD 代码...');
+console.log('💉 正在向 dist/preload.js 注入纯白自适应 + 页面内大模态 HUD v4.0 代码...');
 const modifiedPreload = originalPreload + '\n\n' + injectCode;
 writeFileSync(preloadPath, modifiedPreload, 'utf8');
 
