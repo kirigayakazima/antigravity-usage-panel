@@ -10,6 +10,8 @@
     "dashboard": "start http://127.0.0.1:19388",
     "inject:install": "node ./bin/inject-install.mjs",
     "inject:uninstall": "node ./bin/inject-uninstall.mjs",
+    "hook": "node ./bin/lifecycle-hook.mjs",
+    "lifecycle": "node ./bin/lifecycle-hook.mjs",
     "dev": "node daemon.mjs"
   },
   "keywords": [

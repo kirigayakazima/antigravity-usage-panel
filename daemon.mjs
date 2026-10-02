@@ -1,8 +1,20 @@
 import http from 'node:http';
-import { readdirSync, readFileSync, statSync, mkdtempSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { scanConversations } from './lib/conversations.js';
+
+process.on('uncaughtException', (err) => {
+  try {
+    writeFileSync('d:/CodePackage/DSPlug/antigravity-usage-panel/crash.txt', `[${new Date().toISOString()}] Uncaught: ${err.stack || err.message}\n`, { flag: 'a' });
+  } catch (e) {}
+});
+
+process.on('unhandledRejection', (err) => {
+  try {
+    writeFileSync('d:/CodePackage/DSPlug/antigravity-usage-panel/crash.txt', `[${new Date().toISOString()}] Rejection: ${err?.stack || err?.message || err}\n`, { flag: 'a' });
+  } catch (e) {}
+});
 
 const PORT = 19388;
 const home = homedir();
@@ -236,6 +248,9 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '127.0.0.1', () => {
+  try {
+    writeFileSync('d:/CodePackage/DSPlug/antigravity-usage-panel/pid.txt', String(process.pid));
+  } catch (e) {}
   console.log(`[Antigravity Quota Daemon] Running on http://127.0.0.1:${PORT}`);
   getQuota().then(q => {
     console.log(`[Daemon Initialized] Connected to language server on port ${q.port}`);

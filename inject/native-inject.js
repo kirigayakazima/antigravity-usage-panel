@@ -1,59 +1,20 @@
 // =========================================================================
-// Antigravity Native UI Quota Capsule & In-Page Modal (v4.0)
-// 1. 生命周期自愈伴随钩子 (检查19388，已启动则跳过，未启动自动拉起)
-// 2. 纯白轻奢极简胶囊 (彻底告别黑色方块，完美融入反重力浅色界面)
-// 3. 当前页面全屏/居中大屏看板 (告别外部浏览器跳转，沉浸式体验)
-// 4. 官方权威直连 + 离线会话统计双引擎
+// Antigravity Native UI Quota Capsule & In-Page Modal (v4.1 Pure Web)
+// 100% 纯原生 Web API，零 Node.js 模块依赖，零报错风险，完美适配浅色纯白界面
 // =========================================================================
 
 (function initAntigravityQuotaInjection() {
-  if (window.__ANTIGRAVITY_QUOTA_INJECTED_V4__) return;
-  window.__ANTIGRAVITY_QUOTA_INJECTED_V4__ = true;
+  if (window.__ANTIGRAVITY_QUOTA_INJECTED_V4_1__) return;
+  window.__ANTIGRAVITY_QUOTA_INJECTED_V4_1__ = true;
 
-  console.log('[Antigravity Quota HUD v4.0] Initializing with Lifecycle Hook & Pure White Modal...');
-
-  // -----------------------------------------------------------------------
-  // 0. 生命周期伴随自愈钩子 (启动检查：已启动则跳过，未启动自动静默拉起)
-  // -----------------------------------------------------------------------
-  function checkAndSpawnDaemon() {
-    try {
-      const http = require('node:http');
-      const req = http.get('http://127.0.0.1:19388/api/ping', (res) => {
-        // 19388 正在正常运行，跳过
-      });
-      req.on('error', () => {
-        // 未启动，由反重力客户端自动静默拉起 daemon.mjs
-        try {
-          const { spawn } = require('node:child_process');
-          const { existsSync } = require('node:fs');
-          const daemonPath = 'd:\\CodePackage\\DSPlug\\antigravity-usage-panel\\daemon.mjs';
-          if (existsSync(daemonPath)) {
-            spawn('node', [daemonPath], {
-              cwd: 'd:\\CodePackage\\DSPlug\\antigravity-usage-panel',
-              detached: true,
-              stdio: 'ignore',
-              windowsHide: true
-            }).unref();
-            console.log('[Antigravity Lifecycle Hook] Quota daemon automatically spawned.');
-          }
-        } catch (spawnErr) {}
-      });
-      req.setTimeout(800, () => req.destroy());
-    } catch (e) {}
-  }
-
-  // 立即检查一次，并且每 15 秒保活探测一次
-  checkAndSpawnDaemon();
-  setInterval(checkAndSpawnDaemon, 15000);
+  console.log('[Antigravity Quota HUD v4.1] Pure Web Engine Initializing...');
 
   // 清除任何旧版遗留的黑卡片和旧 DOM 节点
   try {
     document.querySelectorAll('#agy-popup-card, #agy-quota-capsule-root, #agy-inpage-modal-overlay').forEach(el => el.remove());
   } catch (e) {}
 
-  // -----------------------------------------------------------------------
   // 1. 注入自适应纯白 CSS 样式
-  // -----------------------------------------------------------------------
   const styleEl = document.createElement('style');
   styleEl.textContent = `
     :root {
@@ -92,7 +53,7 @@
       }
     }
 
-    /* 纯白高级状态胶囊 */
+    /* 纯白轻奢胶囊 */
     .agy-pill-bar {
       display: inline-flex !important;
       align-items: center !important;
@@ -174,7 +135,6 @@
       opacity: 1 !important;
     }
 
-    /* 模态大屏主窗体 (浅色纯白高质感) */
     .agy-modal-window {
       width: 90% !important;
       max-width: 880px !important;
@@ -229,7 +189,6 @@
     .agy-tab-pane { display: none; }
     .agy-tab-pane.active { display: block; }
 
-    /* 热力图网格 */
     .agy-heat-grid {
       display: grid !important;
       grid-template-rows: repeat(7, 11px) !important;
@@ -256,9 +215,7 @@
   `;
   document.head ? document.head.appendChild(styleEl) : document.addEventListener('DOMContentLoaded', () => document.head.appendChild(styleEl));
 
-  // -----------------------------------------------------------------------
   // 2. 构建纯白胶囊 DOM 根节点
-  // -----------------------------------------------------------------------
   const capsuleRoot = document.createElement('div');
   capsuleRoot.id = 'agy-quota-capsule-root';
   capsuleRoot.className = 'floating-mode';
@@ -273,17 +230,12 @@
       <span id="agy-pill-countdown" style="color: var(--agy-pill-muted); font-size: 11px">⏳ --</span>
     </div>
   `;
-  document.body.appendChild(capsuleRoot);
 
-  // -----------------------------------------------------------------------
-  // 3. 构建当前页面直接弹出的沉浸式大屏模态 (In-Page Modal)
-  // -----------------------------------------------------------------------
+  // 3. 构建大模态 DOM 根节点
   const modalOverlay = document.createElement('div');
   modalOverlay.id = 'agy-inpage-modal-overlay';
   modalOverlay.innerHTML = `
     <div class="agy-modal-window" id="agy-modal-win">
-      
-      <!-- 模态顶栏：标题 + 状态指示 + 全屏切换 + 关闭 -->
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
         <div style="display: flex; align-items: center; gap: 8px">
           <span style="font-size: 16px">🛰️</span>
@@ -297,7 +249,6 @@
           </div>
         </div>
 
-        <!-- 右上角操作按钮 -->
         <div style="display: flex; align-items: center; gap: 6px">
           <button id="modal-btn-refresh" style="background: transparent; border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer" title="刷新数据">↻ 刷新</button>
           <button id="modal-btn-fullscreen" style="background: transparent; border: 1px solid var(--agy-border-color); color: var(--agy-text-main); padding: 4px 8px; border-radius: 6px; font-size: 11px; cursor: pointer" title="切换全屏/居中视窗">⛶ 展开</button>
@@ -305,7 +256,6 @@
         </div>
       </div>
 
-      <!-- 5 联核心大 KPI 卡片 -->
       <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 12px 16px 8px 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
         <div style="background: var(--agy-modal-bg); border: 1px solid var(--agy-border-color); border-radius: 8px; padding: 8px 10px">
           <div style="font-size: 10px; color: var(--agy-text-muted)">总 Token</div>
@@ -334,7 +284,6 @@
         </div>
       </div>
 
-      <!-- 6 个导航标签栏 -->
       <div style="display: flex; gap: 4px; padding: 0 16px; border-bottom: 1px solid var(--agy-border-color); background: var(--agy-card-bg)">
         <button class="agy-tab-btn active" data-tab="tab-quota">额度配额</button>
         <button class="agy-tab-btn" data-tab="tab-trend">走势曲线</button>
@@ -343,9 +292,7 @@
         <button class="agy-tab-btn" data-tab="tab-sessions">会话列表</button>
       </div>
 
-      <!-- 标签页主体内容区 -->
       <div style="flex: 1; overflow-y: auto; padding: 16px; background: var(--agy-modal-bg)">
-        
         <!-- Tab 1: 额度配额 -->
         <div id="tab-quota" class="agy-tab-pane active" style="display: flex; flex-direction: column; gap: 12px">
           <div style="background: var(--agy-card-bg); border: 1px solid var(--agy-border-color); border-radius: 10px; padding: 14px">
@@ -490,16 +437,27 @@
             </div>
           </div>
         </div>
-
       </div>
-
     </div>
   `;
-  document.body.appendChild(modalOverlay);
 
-  // -----------------------------------------------------------------------
-  // 4. 智能吸附挂载：优先挂载到图 3 所示的 Tab Header 栏
-  // -----------------------------------------------------------------------
+  function mountDOM() {
+    if (!document.body) return;
+    if (!document.getElementById('agy-quota-capsule-root')) {
+      document.body.appendChild(capsuleRoot);
+    }
+    if (!document.getElementById('agy-inpage-modal-overlay')) {
+      document.body.appendChild(modalOverlay);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', mountDOM);
+  } else {
+    mountDOM();
+  }
+
+  // 4. 智能嵌入图 3 所示的顶栏工具栏
   function tryEmbedIntoToolbar() {
     const candidateBars = document.querySelectorAll('div, header');
     let targetContainer = null;
@@ -537,15 +495,13 @@
     }
   }
 
-  // -----------------------------------------------------------------------
-  // 5. 模态窗口与 Tab 交互 (点击胶囊直接呼出大模态，绝无外部跳转)
-  // -----------------------------------------------------------------------
-  const pillBar = document.getElementById('agy-pill-bar');
-  const overlay = document.getElementById('agy-inpage-modal-overlay');
-  const modalWin = document.getElementById('agy-modal-win');
-  const btnClose = document.getElementById('modal-btn-close');
-  const btnFullscreen = document.getElementById('modal-btn-fullscreen');
-  const btnRefresh = document.getElementById('modal-btn-refresh');
+  // 5. 交互事件绑定
+  const pillBar = capsuleRoot.querySelector('#agy-pill-bar');
+  const overlay = modalOverlay;
+  const modalWin = modalOverlay.querySelector('#agy-modal-win');
+  const btnClose = modalOverlay.querySelector('#modal-btn-close');
+  const btnFullscreen = modalOverlay.querySelector('#modal-btn-fullscreen');
+  const btnRefresh = modalOverlay.querySelector('#modal-btn-refresh');
 
   function openModal() {
     overlay.classList.add('open');
@@ -557,7 +513,6 @@
     overlay.classList.remove('open');
   }
 
-  // 关键：点击胶囊，直接触发当前页面内居中大屏！
   pillBar.addEventListener('click', (e) => {
     e.stopPropagation();
     openModal();
@@ -587,7 +542,6 @@
     }
   });
 
-  // Tab 切换逻辑
   const tabBtns = modalOverlay.querySelectorAll('.agy-tab-btn');
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -598,7 +552,7 @@
       });
       btn.classList.add('active');
       const targetId = btn.getAttribute('data-tab');
-      const targetPane = document.getElementById(targetId);
+      const targetPane = modalOverlay.querySelector('#' + targetId);
       if (targetPane) {
         targetPane.classList.add('active');
         targetPane.style.display = 'block';
@@ -613,9 +567,7 @@
     });
   });
 
-  // -----------------------------------------------------------------------
-  // 6. 格式化与计算辅助
-  // -----------------------------------------------------------------------
+  // 6. 辅助函数
   function fmtNum(n) {
     if (n === null || n === undefined || isNaN(n)) return '0';
     if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
@@ -656,13 +608,11 @@
     };
   }
 
-  // -----------------------------------------------------------------------
   // 7. 渲染配额数据
-  // -----------------------------------------------------------------------
   function updateQuotaDOM(quota) {
     if (!quota || !quota.groups) return;
 
-    const p = document.getElementById('modal-ls-port');
+    const p = modalOverlay.querySelector('#modal-ls-port');
     if (p && quota.port) p.textContent = quota.port;
 
     for (const group of quota.groups) {
@@ -673,54 +623,50 @@
           const proj = calcQuotaProjection(frac, b.window);
 
           if (b.bucketId === 'gemini-5h') {
-            // 胶囊条
-            document.getElementById('agy-pill-5h').textContent = proj.remPct;
-            document.getElementById('agy-pill-tokens').textContent = `~${proj.remTokStr}`;
-            document.getElementById('agy-pill-countdown').textContent = `⏳ ${resetStr}`;
+            capsuleRoot.querySelector('#agy-pill-5h').textContent = proj.remPct;
+            capsuleRoot.querySelector('#agy-pill-tokens').textContent = `~${proj.remTokStr}`;
+            capsuleRoot.querySelector('#agy-pill-countdown').textContent = `⏳ ${resetStr}`;
 
-            // 模态大屏
-            document.getElementById('m-5h-val').textContent = proj.remPct;
-            document.getElementById('m-5h-bar').style.width = proj.remPct;
-            document.getElementById('m-5h-rem').textContent = `剩余约: ${proj.remTokStr} Token`;
-            document.getElementById('m-5h-reset').textContent = `重置: ${resetStr}`;
-            document.getElementById('m-5h-calls').textContent = `预计还能调用 ≈ ${proj.remCalls.toLocaleString()} 次`;
-            document.getElementById('m-5h-cap').textContent = `5h预算容量 ≈ ${proj.capStr}`;
+            modalOverlay.querySelector('#m-5h-val').textContent = proj.remPct;
+            modalOverlay.querySelector('#m-5h-bar').style.width = proj.remPct;
+            modalOverlay.querySelector('#m-5h-rem').textContent = `剩余约: ${proj.remTokStr} Token`;
+            modalOverlay.querySelector('#m-5h-reset').textContent = `重置: ${resetStr}`;
+            modalOverlay.querySelector('#m-5h-calls').textContent = `预计还能调用 ≈ ${proj.remCalls.toLocaleString()} 次`;
+            modalOverlay.querySelector('#m-5h-cap').textContent = `5h预算容量 ≈ ${proj.capStr}`;
 
-            document.getElementById('mod-38').textContent = proj.remPct;
-            document.getElementById('mod-37').textContent = proj.remPct;
-            document.getElementById('mod-31').textContent = proj.remPct;
-            document.getElementById('trend-lbl-5h').textContent = `● 5小时滚动 (${proj.remPct})`;
+            modalOverlay.querySelector('#mod-38').textContent = proj.remPct;
+            modalOverlay.querySelector('#mod-37').textContent = proj.remPct;
+            modalOverlay.querySelector('#mod-31').textContent = proj.remPct;
+            modalOverlay.querySelector('#trend-lbl-5h').textContent = `● 5小时滚动 (${proj.remPct})`;
 
           } else if (b.bucketId === 'gemini-weekly') {
-            document.getElementById('m-w-val').textContent = proj.remPct;
-            document.getElementById('m-w-bar').style.width = proj.remPct;
-            document.getElementById('m-w-rem').textContent = `剩余约: ${proj.remTokStr} Token`;
-            document.getElementById('m-w-reset').textContent = `重置: ${resetStr}`;
-            document.getElementById('m-w-calls').textContent = `预计还能调用 ≈ ${proj.remCalls.toLocaleString()} 次`;
-            document.getElementById('m-w-cap').textContent = `周总预算 ≈ ${proj.capStr}`;
-            document.getElementById('trend-lbl-w').textContent = `● 周总限额 (${proj.remPct})`;
+            modalOverlay.querySelector('#m-w-val').textContent = proj.remPct;
+            modalOverlay.querySelector('#m-w-bar').style.width = proj.remPct;
+            modalOverlay.querySelector('#m-w-rem').textContent = `剩余约: ${proj.remTokStr} Token`;
+            modalOverlay.querySelector('#m-w-reset').textContent = `重置: ${resetStr}`;
+            modalOverlay.querySelector('#m-w-calls').textContent = `预计还能调用 ≈ ${proj.remCalls.toLocaleString()} 次`;
+            modalOverlay.querySelector('#m-w-cap').textContent = `周总预算 ≈ ${proj.capStr}`;
+            modalOverlay.querySelector('#trend-lbl-w').textContent = `● 周总限额 (${proj.remPct})`;
           }
         }
       }
     }
 
-    const dot = document.getElementById('agy-dot');
+    const dot = capsuleRoot.querySelector('#agy-dot');
     if (dot) {
       dot.style.backgroundColor = 'var(--agy-emerald)';
       dot.style.boxShadow = '0 0 6px var(--agy-emerald)';
     }
   }
 
-  // -----------------------------------------------------------------------
-  // 8. 官方权威直连
-  // -----------------------------------------------------------------------
+  // 8. 官方权威直连 (自动支持 http / https)
   async function fetchAuthorityData() {
     let success = false;
     try {
-      const port = window.location.port || '11952';
+      const origin = window.location.origin;
       const csrf = window.__APP_CONFIG__?.csrfToken;
       if (csrf) {
-        const res = await fetch(`http://127.0.0.1:${port}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`, {
+        const res = await fetch(`${origin}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`, {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
@@ -732,7 +678,7 @@
         if (res.ok) {
           const data = await res.json();
           updateQuotaDOM({
-            port,
+            port: window.location.port,
             groups: data.groups || data.response?.groups || []
           });
           success = true;
@@ -751,18 +697,16 @@
       } catch (err) {}
     }
 
-    const dot = document.getElementById('agy-dot');
+    const dot = capsuleRoot.querySelector('#agy-dot');
     if (dot && !success) {
       dot.style.backgroundColor = '#f59e0b';
       dot.style.boxShadow = '0 0 6px #f59e0b';
     }
   }
 
-  // -----------------------------------------------------------------------
-  // 9. 离线会话库与热力图渲染
-  // -----------------------------------------------------------------------
+  // 9. 渲染热力图与离线会话
   function renderHeatmap() {
-    const container = document.getElementById('agy-heat-container');
+    const container = modalOverlay.querySelector('#agy-heat-container');
     if (!container) return;
     container.innerHTML = '';
 
@@ -802,7 +746,7 @@
   }
 
   function renderModels(byModel) {
-    const tbody = document.getElementById('models-table-rows');
+    const tbody = modalOverlay.querySelector('#models-table-rows');
     if (!tbody) return;
     const list = Object.values(byModel || {});
     if (list.length === 0) {
@@ -826,7 +770,7 @@
   }
 
   function renderSessions(filterText = '') {
-    const listEl = document.getElementById('modal-sess-list');
+    const listEl = modalOverlay.querySelector('#modal-sess-list');
     if (!listEl) return;
     const q = filterText.toLowerCase();
     const filtered = RAW_CONVERSATIONS.filter(c => {
@@ -856,7 +800,7 @@
     }).join('');
   }
 
-  document.getElementById('modal-sess-search')?.addEventListener('input', (e) => {
+  modalOverlay.querySelector('#modal-sess-search')?.addEventListener('input', (e) => {
     renderSessions(e.target.value);
   });
 
@@ -875,14 +819,14 @@
         const tokCache = totals.tokens?.cacheRead || 0;
         const totalTok = tokIn + tokOut + tokCache;
 
-        document.getElementById('kpi-tok-total').textContent = fmtNum(totalTok);
-        document.getElementById('kpi-gens').textContent = fmtNum(totals.genCalls || 0);
-        document.getElementById('kpi-output').textContent = fmtNum(tokOut);
-        document.getElementById('kpi-convs').textContent = RAW_CONVERSATIONS.length;
+        modalOverlay.querySelector('#kpi-tok-total').textContent = fmtNum(totalTok);
+        modalOverlay.querySelector('#kpi-gens').textContent = fmtNum(totals.genCalls || 0);
+        modalOverlay.querySelector('#kpi-output').textContent = fmtNum(tokOut);
+        modalOverlay.querySelector('#kpi-convs').textContent = RAW_CONVERSATIONS.length;
 
         const totalInAll = tokIn + tokCache;
         if (totalInAll > 0) {
-          document.getElementById('kpi-hit-rate').textContent = ((tokCache / totalInAll) * 100).toFixed(1) + '%';
+          modalOverlay.querySelector('#kpi-hit-rate').textContent = ((tokCache / totalInAll) * 100).toFixed(1) + '%';
         }
 
         renderHeatmap();
@@ -892,9 +836,7 @@
     } catch (e) {}
   }
 
-  // -----------------------------------------------------------------------
-  // 10. 初始化与持续自愈监听
-  // -----------------------------------------------------------------------
+  // 10. 初始化并自动维持挂载
   fetchAuthorityData();
   fetchOfflineData();
   setInterval(fetchAuthorityData, 3000);

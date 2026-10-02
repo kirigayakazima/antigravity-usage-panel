@@ -5,3 +5,5 @@ Thumbs.db
 .env
 .idea/
 .vscode/
+pid.txt
+crash.txt
