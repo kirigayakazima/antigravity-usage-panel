@@ -1,0 +1,18 @@
+{
+  "command": "node",
+  "args": ["main.mjs"],
+  "restart_policy": "always",
+  "display_name": "额度监控",
+  "description": "反重力实时额度与用量监控面板",
+  "has_web_ui": true,
+  "ui_config": {
+    "display_name": "额度监控",
+    "views": [
+      {
+        "path": "/",
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE",
+        "title": "额度监控"
+      }
+    ]
+  }
+}

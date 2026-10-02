@@ -1,0 +1,21 @@
+{
+  "name": "antigravity-usage-panel",
+  "version": "1.0.0",
+  "description": "Google 反重力桌面端（Antigravity Desktop）实时额度与用量监控面板插件，原生对齐 DSH，支持秒级配额同步、Token 预算反推、182 天日历热力图与离线 SQLite 会话分析。",
+  "type": "module",
+  "main": "daemon.mjs",
+  "scripts": {
+    "start": "node daemon.mjs",
+    "dev": "node daemon.mjs"
+  },
+  "keywords": [
+    "antigravity",
+    "antigravity-desktop",
+    "quota-monitor",
+    "token-usage",
+    "heatmap",
+    "electron-plugin"
+  ],
+  "author": "kirigayakazima",
+  "license": "MIT"
+}

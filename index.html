@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>反重力额度 / 用量监控面板</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    :root {
+      --bg-page: #ffffff;
+      --bg-card: #f8fafc;
+      --bg-subtle: #f1f5f9;
+      --border-main: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --heat-empty: rgba(128, 128, 128, 0.16);
+      --primary: #4f46e5;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-page: #121316;
+        --bg-card: #1a1d24;
+        --bg-subtle: #121316;
+        --border-main: #262a33;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --heat-empty: rgba(128, 128, 128, 0.16);
+        --primary: #6366f1;
+      }
+    }
+
+    body {
+      background-color: var(--bg-page);
+      color: var(--text-main);
+    }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(150, 150, 150, 0.25); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(150, 150, 150, 0.45); }
+
+    .tab-btn {
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text-main); }
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+      font-weight: 600;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .filter-btn {
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--text-muted);
+    }
+    .filter-btn:hover { color: var(--text-main); background: rgba(128,128,128,0.1); }
+    .filter-btn.active { background: var(--primary); color: #ffffff; font-weight: 600; }
+
+    .metric-btn {
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      color: var(--text-muted);
+      border: 1px solid var(--border-main);
+      background: var(--bg-card);
+      transition: all 0.15s;
+    }
+    .metric-btn:hover { color: var(--text-main); }
+    .metric-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+
+    /* DSH 原版标准网格热力图 */
+    .au-heat-wrap {
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .heat-grid {
+      display: grid;
+      grid-template-rows: repeat(7, 11px);
+      grid-auto-flow: column;
+      grid-auto-columns: 11px;
+      gap: 3px;
+      width: max-content;
+    }
+    .heat-cell {
+      width: 11px;
+      height: 11px;
+      border-radius: 2px;
+      background: var(--heat-empty);
+      transition: transform 0.1s ease;
+    }
+    .heat-cell:hover {
+      transform: scale(1.35);
+      z-index: 20;
+      outline: 1.5px solid #16a34a;
+    }
+    .heat-cell.is-today {
+      outline: 1.5px solid #3b82f6;
+      outline-offset: 1px;
+    }
+  </style>
+</head>
+<body class="antialiased p-3 font-sans select-none min-h-screen text-xs">
+  <div class="max-w-3xl mx-auto space-y-3">
+
+    <!-- 顶部控制条：标题 + 实时状态指示 + 全局时间 Filter + 刷新 -->
+    <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b" style="border-color: var(--border-main)">
+      <div class="flex items-center gap-2">
+        <span class="text-base">🛰️</span>
+        <div>
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-xs font-bold tracking-wide">反重力额度 / 用量监控</h1>
+            <span id="daemon-badge" class="px-1.5 py-0.2 text-[10px] font-medium bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-500/30 flex items-center gap-1">
+              <span id="daemon-dot" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span id="daemon-status-text">实时连线中 (127.0.0.1:19388)</span>
+            </span>
+          </div>
+          <p class="text-[10px]" style="color: var(--text-muted)">
+            数据源: 反重力桌面端 Language Server (端口 <span id="ls-port-label">检测中...</span>) + SQLite 本地会话库
+          </p>
+        </div>
+      </div>
+
+      <!-- 右侧时间过滤 Filter + 刷新 -->
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <div class="flex p-0.5 rounded-md border text-[11px]" style="background: var(--bg-card); border-color: var(--border-main)" id="filter-group">
+          <button class="filter-btn" data-days="0">今天</button>
+          <button class="filter-btn" data-days="7">7天</button>
+          <button class="filter-btn" data-days="14">14天</button>
+          <button class="filter-btn" data-days="30">近30天</button>
+          <button class="filter-btn" data-days="90">近90天</button>
+          <button class="filter-btn active" data-days="all">全部</button>
+        </div>
+        <button id="refresh-btn" class="p-1.5 rounded border hover:opacity-80 transition" style="background: var(--bg-card); border-color: var(--border-main)" title="立即刷新数据">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- 🌟 5 联核心大汇总卡片 (KPI Summary Cards) -->
+    <section class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <!-- 总 Token -->
+      <div class="col-span-2 sm:col-span-1 p-2.5 rounded-lg border flex flex-col justify-between" style="background: var(--bg-card); border-color: var(--border-main)">
+        <div class="text-[10px]" style="color: var(--text-muted)">总 Token</div>
+        <div class="text-sm font-bold font-mono mt-0.5" id="kpi-total-token">--</div>
+        <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden flex my-1.5">
+          <div id="bar-in" class="bg-blue-500 h-full" style="width: 10%" title="未命中输入"></div>
+          <div id="bar-cache" class="bg-emerald-500 h-full" style="width: 89%" title="缓存命中"></div>
+          <div id="bar-out" class="bg-purple-500 h-full" style="width: 1%" title="输出"></div>
+        </div>
+        <div class="text-[9px] truncate flex justify-between" style="color: var(--text-muted)">
+          <span class="text-blue-500 font-mono" id="sub-in">输入 --</span>
+          <span class="text-emerald-500 font-mono" id="sub-cache">命中 --</span>
+        </div>
+      </div>
+
+      <!-- 缓存命中率 -->
+      <div class="p-2.5 rounded-lg border flex flex-col justify-between" style="background: var(--bg-card); border-color: var(--border-main)">
+        <div class="text-[10px]" style="color: var(--text-muted)">缓存命中率</div>
+        <div class="text-base font-extrabold font-mono text-emerald-600 dark:text-emerald-400 mt-0.5" id="kpi-hit-rate">--%</div>
+        <div class="text-[9px] mt-1.5 font-mono" style="color: var(--text-muted)" id="kpi-hit-sub">命中 -- / 未命 --</div>
+      </div>
+
+      <!-- 模型调用次数 -->
+      <div class="p-2.5 rounded-lg border flex flex-col justify-between" style="background: var(--bg-card); border-color: var(--border-main)">
+        <div class="text-[10px]" style="color: var(--text-muted)">模型调用次数</div>
+        <div class="text-base font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5" id="kpi-gens">--</div>
+        <div class="text-[9px] mt-1.5" style="color: var(--text-muted)" id="kpi-active-days">-- 天有活动</div>
+      </div>
+
+      <!-- 输出 Token -->
+      <div class="p-2.5 rounded-lg border flex flex-col justify-between" style="background: var(--bg-card); border-color: var(--border-main)">
+        <div class="text-[10px]" style="color: var(--text-muted)">输出 Token</div>
+        <div class="text-base font-bold font-mono text-purple-600 dark:text-purple-400 mt-0.5" id="kpi-output">--</div>
+        <div class="text-[9px] mt-1.5 font-mono" style="color: var(--text-muted)" id="kpi-out-sub">思考 -- · 回复 --</div>
+      </div>
+
+      <!-- 会话数 -->
+      <div class="p-2.5 rounded-lg border flex flex-col justify-between" style="background: var(--bg-card); border-color: var(--border-main)">
+        <div class="text-[10px]" style="color: var(--text-muted)">会话总数</div>
+        <div class="text-base font-bold font-mono text-cyan-600 dark:text-cyan-400 mt-0.5" id="kpi-sessions">--</div>
+        <div class="text-[9px] mt-1.5 font-mono" style="color: var(--text-muted)" id="kpi-steps">共 -- 步</div>
+      </div>
+    </section>
+
+    <!-- 6 个导航标签栏（完全对齐 DSH） -->
+    <nav class="flex border-b overflow-x-auto" style="border-color: var(--border-main)">
+      <button class="tab-btn active" data-tab="tab-quota">额度</button>
+      <button class="tab-btn" data-tab="tab-trend">趋势</button>
+      <button class="tab-btn" data-tab="tab-heatmap">热力图</button>
+      <button class="tab-btn" data-tab="tab-summary">汇总</button>
+      <button class="tab-btn" data-tab="tab-resets">重置</button>
+      <button class="tab-btn" data-tab="tab-sessions">会话</button>
+    </nav>
+
+    <!-- 主体区域 -->
+    <main>
+
+      <!-- ================= Tab 1：额度 ================= -->
+      <div id="tab-quota" class="tab-content active space-y-3">
+        <!-- 账号连接卡片 -->
+        <section class="p-3 rounded-lg border flex items-center justify-between" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span class="font-semibold" id="account-name-label">当前登录用户</span>
+            <span class="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-mono text-[10px]">Google AI Pro</span>
+          </div>
+          <div class="text-[10px] font-mono" style="color: var(--text-muted)">
+            ⚡ Token 预算反推引擎已激活
+          </div>
+        </section>
+
+        <!-- Gemini 双配额 -->
+        <section class="p-3.5 rounded-lg border space-y-3" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="font-semibold flex justify-between items-center">
+            <span>✨ Gemini Models</span>
+            <span class="text-[10px] font-normal" style="color: var(--text-muted)">Flash & Pro 共享限额 · 动态反推</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <!-- Weekly -->
+            <div class="p-2.5 rounded border space-y-1.5" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="text-[11px] font-medium" style="color: var(--text-muted)">Weekly Limit Remaining</span>
+                  <div class="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1 mt-0.5" id="gemini-weekly-token-est">
+                    <span>≈ 剩余约</span>
+                    <b class="font-mono text-xs font-bold" id="gemini-weekly-rem-tok">--</b>
+                    <span>Token</span>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span id="gemini-weekly-val" class="font-mono font-bold text-base text-indigo-600 dark:text-indigo-400">--%</span>
+                  <div class="text-[9px] font-mono opacity-70" id="gemini-weekly-calls-est">计算中...</div>
+                </div>
+              </div>
+              <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div id="gemini-weekly-bar" class="bg-indigo-500 h-full rounded-full transition-all duration-500" style="width: 100%"></div>
+              </div>
+              <div class="flex justify-between text-[10px]" style="color: var(--text-muted)">
+                <span id="gemini-weekly-reset">重置: --</span>
+                <span id="gemini-weekly-cap" class="font-mono">周总预算 ≈ --</span>
+                <span id="gemini-weekly-used">已用: --%</span>
+              </div>
+            </div>
+
+            <!-- 5h -->
+            <div class="p-2.5 rounded border space-y-1.5" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div class="flex justify-between items-start">
+                <div>
+                  <span class="text-[11px] font-medium" style="color: var(--text-muted)">Five Hour Limit Remaining</span>
+                  <div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 mt-0.5" id="gemini-5h-token-est">
+                    <span>≈ 剩余约</span>
+                    <b class="font-mono text-xs font-bold" id="gemini-5h-rem-tok">--</b>
+                    <span>Token</span>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <span id="gemini-5h-val" class="font-mono font-bold text-base text-emerald-600 dark:text-emerald-400">--%</span>
+                  <div class="text-[9px] font-mono opacity-70" id="gemini-5h-calls-est">计算中...</div>
+                </div>
+              </div>
+              <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                <div id="gemini-5h-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 100%"></div>
+              </div>
+              <div class="flex justify-between text-[10px]" style="color: var(--text-muted)">
+                <span id="gemini-5h-reset">重置: --</span>
+                <span id="gemini-5h-cap" class="font-mono">5h预算容量 ≈ --</span>
+                <span id="gemini-5h-used">已用: --%</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Claude & GPT -->
+        <section class="p-3.5 rounded-lg border space-y-3" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="font-semibold flex justify-between items-center">
+            <span>🧠 Claude and GPT models</span>
+            <span class="text-[10px] text-emerald-600 dark:text-emerald-400">充裕 100%</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="p-2 rounded border" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div class="text-[10px]" style="color: var(--text-muted)">Weekly Limit</div>
+              <div id="claude-weekly-val" class="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">100.00%</div>
+            </div>
+            <div class="p-2 rounded border" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div class="text-[10px]" style="color: var(--text-muted)">Five Hour Limit</div>
+              <div id="claude-5h-val" class="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">100.00%</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 各模型状态 -->
+        <section class="p-3 rounded-lg border space-y-2" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="font-semibold">🧩 各模型实时状态 (按 5h 剩余反推)</div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]" id="models-quick-status">
+            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
+              <span class="truncate">Gemini 3.8 Flash</span>
+              <span class="font-mono text-emerald-600 dark:text-emerald-400 font-bold ml-1" id="m-gemini-38">--%</span>
+            </div>
+            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
+              <span class="truncate">Gemini 3.7 Flash</span>
+              <span class="font-mono text-emerald-600 dark:text-emerald-400 font-bold ml-1" id="m-gemini-37">--%</span>
+            </div>
+            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
+              <span class="truncate">Gemini 3.1 Pro</span>
+              <span class="font-mono text-emerald-600 dark:text-emerald-400 font-bold ml-1" id="m-gemini-31">--%</span>
+            </div>
+            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
+              <span class="truncate">Claude 3.5 Sonnet</span>
+              <span class="font-mono text-indigo-600 dark:text-indigo-400 font-bold ml-1">100%</span>
+            </div>
+            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
+              <span class="truncate">Claude 3.7 Sonnet</span>
+              <span class="font-mono text-indigo-600 dark:text-indigo-400 font-bold ml-1">100%</span>
+            </div>
+            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
+              <span class="truncate">GPT-OSS 120B</span>
+              <span class="font-mono text-indigo-600 dark:text-indigo-400 font-bold ml-1">100%</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= Tab 2：趋势 ================= -->
+      <div id="tab-trend" class="tab-content space-y-3">
+        <section class="p-3.5 rounded-lg border space-y-2.5" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="flex justify-between items-center">
+            <span class="font-semibold">配额消耗走势曲线</span>
+            <span class="text-[10px]" style="color: var(--text-muted)">时间序列采样</span>
+          </div>
+
+          <div class="p-3 rounded-lg border" style="background: var(--bg-subtle); border-color: var(--border-main)">
+            <svg viewBox="0 0 500 160" class="w-full h-40 overflow-visible">
+              <line x1="30" y1="20" x2="480" y2="20" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
+              <text x="24" y="24" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">100%</text>
+              <line x1="30" y1="60" x2="480" y2="60" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
+              <text x="24" y="64" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">75%</text>
+              <line x1="30" y1="100" x2="480" y2="100" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
+              <text x="24" y="104" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">50%</text>
+              <line x1="30" y1="140" x2="480" y2="140" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
+              <text x="24" y="144" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">25%</text>
+
+              <path id="trend-line-weekly" d="M 30 22 Q 150 23, 270 24 T 400 25 T 480 26" fill="none" stroke="#6366f1" stroke-width="2.5" />
+              <path id="trend-line-5h" d="M 30 22 Q 150 25, 270 32 T 400 40 T 480 44" fill="none" stroke="#16a34a" stroke-width="2" stroke-dasharray="3 2" />
+            </svg>
+            <div class="flex justify-between text-[10px] mt-2" style="color: var(--text-muted)">
+              <span class="text-indigo-600 dark:text-indigo-400" id="trend-label-weekly">● 周配额 (--%)</span>
+              <span class="text-emerald-600 dark:text-emerald-400" id="trend-label-5h">● 5小时滚动 (--%)</span>
+              <span class="text-emerald-600 dark:text-emerald-400">🟢 运行平稳</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= Tab 3：热力图 ================= -->
+      <div id="tab-heatmap" class="tab-content space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-1.5 flex-wrap" id="heat-metrics">
+            <button class="metric-btn active" data-m="sessions">会话数</button>
+            <button class="metric-btn" data-m="steps">步数</button>
+            <button class="metric-btn" data-m="tokens">token</button>
+            <button class="metric-btn" data-m="cache">缓存读取</button>
+          </div>
+          <span class="text-[11px]" style="color: var(--text-muted)" id="heat-peak">近 182 天</span>
+        </div>
+
+        <div class="p-3.5 rounded-lg border space-y-2.5" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="flex items-center gap-1.5">
+            <span class="text-sm">🗓️</span>
+            <span class="font-bold text-xs">日历热力图</span>
+          </div>
+          <p class="text-[10px]" style="color: var(--text-muted)">
+            来自反重力本地会话库（离线可读），反重力关着也照常有数据。
+          </p>
+
+          <div class="au-heat-wrap pt-1">
+            <div id="heatmap-grid" class="heat-grid"></div>
+          </div>
+          
+          <div class="flex justify-between items-center text-[10px] pt-2 border-t" style="border-color: var(--border-main); color: var(--text-muted)">
+            <span id="heat-legend-stats">离线数据准备就绪</span>
+            <div class="flex items-center gap-1.5">
+              <span>少</span>
+              <span class="w-2.5 h-2.5 rounded-sm" style="background: rgba(128,128,128,.16)"></span>
+              <span class="w-2.5 h-2.5 rounded-sm" style="background: color-mix(in srgb, #16a34a 28%, transparent)"></span>
+              <span class="w-2.5 h-2.5 rounded-sm" style="background: color-mix(in srgb, #16a34a 52%, transparent)"></span>
+              <span class="w-2.5 h-2.5 rounded-sm" style="background: color-mix(in srgb, #16a34a 76%, transparent)"></span>
+              <span class="w-2.5 h-2.5 rounded-sm" style="background: #16a34a"></span>
+              <span>多</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= Tab 4：汇总 ================= -->
+      <div id="tab-summary" class="tab-content space-y-3">
+        <section class="p-3.5 rounded-lg border space-y-2" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="font-semibold">📊 离线用量总览</div>
+          <p class="text-[10px]" style="color: var(--text-muted)">直接只读扫描落在磁盘上的会话库，无需反重力运行。</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 font-mono text-[11px]">
+            <div class="p-2 rounded border" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div class="text-[10px] font-sans" style="color: var(--text-muted)">会话总数</div>
+              <div class="font-bold text-sm" id="sum-sessions">--</div>
+            </div>
+            <div class="p-2 rounded border" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div class="text-[10px] font-sans" style="color: var(--text-muted)">总步数</div>
+              <div class="font-bold text-sm text-indigo-600 dark:text-indigo-400" id="sum-steps">--</div>
+            </div>
+            <div class="p-2 rounded border" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div class="text-[10px] font-sans" style="color: var(--text-muted)">生成次数</div>
+              <div class="font-bold text-sm text-cyan-600 dark:text-cyan-400" id="sum-gens">--</div>
+            </div>
+            <div class="p-2 rounded border" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div class="text-[10px] font-sans" style="color: var(--text-muted)">用过的模型</div>
+              <div class="font-bold text-sm text-purple-600 dark:text-purple-400" id="sum-models">--</div>
+            </div>
+          </div>
+        </section>
+
+        <section class="p-3.5 rounded-lg border space-y-2" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="font-semibold">🌸 按模型用量汇总</div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-[11px] text-left">
+              <thead>
+                <tr class="border-b" style="border-color: var(--border-main); color: var(--text-muted)">
+                  <th class="py-1.5 font-medium">模型</th>
+                  <th class="py-1.5 font-medium text-right">生成</th>
+                  <th class="py-1.5 font-medium text-right">输入</th>
+                  <th class="py-1.5 font-medium text-right">输出</th>
+                  <th class="py-1.5 font-medium text-right">缓存读取</th>
+                  <th class="py-1.5 font-medium text-right">命中率</th>
+                </tr>
+              </thead>
+              <tbody id="models-table-body" class="divide-y" style="border-color: var(--border-main)">
+                <tr><td colspan="6" class="py-4 text-center opacity-60 font-sans">正在加载模型统计...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= Tab 5：重置 ================= -->
+      <div id="tab-resets" class="tab-content space-y-3">
+        <section class="p-3.5 rounded-lg border space-y-2" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="font-semibold">🔄 配额恢复与重置事件</div>
+          <p class="text-[10px]" style="color: var(--text-muted)">监控配额上升与滚动重置行为。</p>
+          <div class="space-y-1.5 pt-1 text-[11px]" id="resets-list">
+            <div class="p-2 rounded border flex justify-between" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div>
+                <span class="text-emerald-600 dark:text-emerald-400 font-bold">+9.09% 滚动恢复</span>
+                <span class="ml-2" style="color: var(--text-muted)">Gemini 5-Hour Limit</span>
+              </div>
+              <span class="text-[10px]" style="color: var(--text-muted)">今天 11:46</span>
+            </div>
+            <div class="p-2 rounded border flex justify-between" style="background: var(--bg-subtle); border-color: var(--border-main)">
+              <div>
+                <span class="text-emerald-600 dark:text-emerald-400 font-bold">+100.0% 周期刷新</span>
+                <span class="ml-2" style="color: var(--text-muted)">Gemini Weekly Limit</span>
+              </div>
+              <span class="text-[10px]" style="color: var(--text-muted)">10月01日 14:10</span>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= Tab 6：会话 ================= -->
+      <div id="tab-sessions" class="tab-content space-y-3">
+        <section class="p-3.5 rounded-lg border space-y-2.5" style="background: var(--bg-card); border-color: var(--border-main)">
+          <div class="flex justify-between items-center">
+            <span class="font-semibold">历史会话明细</span>
+            <span class="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono" id="session-count-tag">SQLite 本地只读</span>
+          </div>
+
+          <input type="text" id="session-search" placeholder="输入关键词搜索标题、工作区、模型..." class="w-full px-2.5 py-1.5 border rounded-md text-xs focus:outline-none" style="background: var(--bg-subtle); border-color: var(--border-main); color: var(--text-main)" />
+
+          <div id="session-list" class="space-y-1.5 max-h-96 overflow-y-auto pr-1"></div>
+        </section>
+      </div>
+
+    </main>
+
+    <!-- 底栏 -->
+    <footer class="text-center text-[10px] pt-2 border-t flex justify-center gap-2" style="border-color: var(--border-main); color: var(--text-muted)">
+      <span>⚡ 3 秒自动轮询同步</span>
+      <span>•</span>
+      <span id="last-updated">更新于 刚刚</span>
+    </footer>
+
+  </div>
+
+  <script>
+    let RAW_CONVERSATIONS = [];
+    let RAW_DAILY = [];
+    let RAW_BY_MODEL = {};
+
+    const HEAT_COLORS = [
+      'rgba(128,128,128,.16)',
+      'color-mix(in srgb, #16a34a 28%, transparent)',
+      'color-mix(in srgb, #16a34a 52%, transparent)',
+      'color-mix(in srgb, #16a34a 76%, transparent)',
+      '#16a34a',
+    ];
+
+    function fmtNum(n) {
+      if (n === null || n === undefined || isNaN(n)) return '0';
+      if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+      return String(Math.round(n));
+    }
+
+    function formatResetTime(isoStr) {
+      if (!isoStr) return '';
+      const diff = new Date(isoStr).getTime() - Date.now();
+      if (diff <= 0) return '即将重置';
+      const hours = Math.floor(diff / 3600000);
+      const mins = Math.floor((diff % 3600000) / 60000);
+      if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        const remH = hours % 24;
+        return \`\${days}天\${remH}小时\`;
+      }
+      return \`\${hours}小时\${mins}分\`;
+    }
+
+    // 动态 Token 预算反推计算器
+    function calcQuotaProjection(frac, windowType) {
+      const remaining = Math.max(0, Math.min(1, frac));
+      const used = 1 - remaining;
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayItem = RAW_DAILY.find(d => d.date === todayStr);
+
+      let todayTok = 0;
+      let todayGens = 0;
+      if (todayItem) {
+        const t = todayItem.tokens || {};
+        todayTok = (t.input || 0) + (t.output || 0) + (t.cacheRead || 0);
+        todayGens = todayItem.genCalls || 0;
+      }
+
+      let cap = windowType === '5h' ? 104e6 : 623e6;
+      let calls = 0;
+
+      if (used >= 0.005 && todayTok > 0) {
+        cap = todayTok / used;
+        if (todayGens > 0) {
+          calls = Math.round(todayGens * (remaining / used));
+        }
+      } else {
+        calls = Math.round((cap * remaining) / 110000);
+      }
+
+      const remTok = cap * remaining;
+      const usedTok = cap * used;
+
+      return {
+        remPct: (remaining * 100).toFixed(1) + '%',
+        usedPct: (used * 100).toFixed(1) + '%',
+        remTokStr: fmtNum(remTok),
+        capStr: fmtNum(cap),
+        usedTokStr: fmtNum(usedTok),
+        remCalls: calls
+      };
+    }
+
+    // 1. 标签页切换逻辑
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        tabContents.forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        const targetId = btn.getAttribute('data-tab');
+        const target = document.getElementById(targetId);
+        if (target) target.classList.add('active');
+      });
+    });
+
+    // 2. 全局时间过滤 Filter 切换逻辑
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    let currentFilterDays = 'all';
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilterDays = btn.getAttribute('data-days');
+        applyFilter(currentFilterDays);
+      });
+    });
+
+    function applyFilter(days) {
+      let filteredConvs = RAW_CONVERSATIONS;
+      if (days !== 'all') {
+        const d = Number(days);
+        const cutoff = d === 0 ? new Date().setHours(0,0,0,0) : Date.now() - d * 86400000;
+        filteredConvs = RAW_CONVERSATIONS.filter(c => {
+          const t = c.lastModified || c.lastInput || 0;
+          return t >= cutoff;
+        });
+      }
+
+      let totalInput = 0, totalOutput = 0, totalCache = 0, totalSteps = 0, totalGens = 0, thinking = 0, response = 0;
+      filteredConvs.forEach(c => {
+        totalSteps += (c.steps || 0);
+        totalGens += (c.genCalls || 0);
+        const t = c.tokens || {};
+        totalInput += (t.input || 0);
+        totalOutput += (t.output || 0);
+        totalCache += (t.cacheRead || 0);
+        thinking += (t.thinking || 0);
+        response += (t.response || 0);
+      });
+
+      const totalTokens = totalInput + totalOutput + totalCache;
+      const totalInAll = totalInput + totalCache;
+      const hitRate = totalInAll > 0 ? ((totalCache / totalInAll) * 100).toFixed(1) : '0';
+
+      document.getElementById('kpi-total-token').textContent = fmtNum(totalTokens);
+      document.getElementById('sub-in').textContent = '输入 ' + fmtNum(totalInput);
+      document.getElementById('sub-cache').textContent = '命中 ' + fmtNum(totalCache);
+
+      if (totalTokens > 0) {
+        document.getElementById('bar-in').style.width = ((totalInput / totalTokens) * 100).toFixed(1) + '%';
+        document.getElementById('bar-cache').style.width = ((totalCache / totalTokens) * 100).toFixed(1) + '%';
+        document.getElementById('bar-out').style.width = ((totalOutput / totalTokens) * 100).toFixed(1) + '%';
+      }
+
+      document.getElementById('kpi-hit-rate').textContent = hitRate + '%';
+      document.getElementById('kpi-hit-sub').textContent = \`命中 \${fmtNum(totalCache)} / 未命 \${fmtNum(totalInput)}\`;
+
+      document.getElementById('kpi-gens').textContent = fmtNum(totalGens);
+      document.getElementById('kpi-active-days').textContent = days === 'all' ? '全部历史 ' + RAW_DAILY.length + ' 天有活动' : '周期内活动统计';
+
+      document.getElementById('kpi-output').textContent = fmtNum(totalOutput);
+      document.getElementById('kpi-out-sub').textContent = \`思考 \${fmtNum(thinking)} · 回复 \${fmtNum(response)}\`;
+
+      document.getElementById('kpi-sessions').textContent = filteredConvs.length;
+      document.getElementById('kpi-steps').textContent = \`共 \${fmtNum(totalSteps)} 步\`;
+
+      const searchVal = document.getElementById('session-search')?.value || '';
+      renderSessions(searchVal, filteredConvs);
+    }
+
+    // 3. 热力图渲染
+    let currentHeatMetric = 'sessions';
+    const heatMetricBtns = document.querySelectorAll('#heat-metrics .metric-btn');
+    heatMetricBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        heatMetricBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentHeatMetric = btn.getAttribute('data-m');
+        renderHeatmap();
+      });
+    });
+
+    function renderHeatmap() {
+      const container = document.getElementById('heatmap-grid');
+      if (!container) return;
+      container.innerHTML = '';
+
+      const dailyMap = {};
+      RAW_DAILY.forEach(d => { dailyMap[d.date] = d; });
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const days = 182;
+      const start = new Date(today.getTime() - (days - 1) * 86400000);
+      start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+
+      const cells = [];
+      for (let d = new Date(start.getTime()); d.getTime() <= today.getTime(); d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().slice(0, 10);
+        cells.push({ date: dateStr, ms: d.getTime() });
+      }
+
+      const values = cells.map(c => {
+        const item = dailyMap[c.date];
+        if (!item) return 0;
+        if (currentHeatMetric === 'steps') return item.steps || 0;
+        if (currentHeatMetric === 'tokens') return ((item.tokens?.input || 0) + (item.tokens?.output || 0));
+        if (currentHeatMetric === 'cache') return item.tokens?.cacheRead || 0;
+        return item.sessions || 0;
+      });
+
+      const maxVal = values.reduce((m, v) => Math.max(m, v), 0);
+      const unit = currentHeatMetric === 'steps' ? ' 步' : (currentHeatMetric === 'sessions' ? ' 个会话' : ' token');
+      document.getElementById('heat-peak').textContent = \`近 182 天 · 峰值 \${fmtNum(maxVal)}\${unit}\`;
+
+      const todayStr = today.toISOString().slice(0, 10);
+
+      cells.forEach((c, i) => {
+        const v = values[i];
+        const cell = document.createElement('div');
+        cell.className = 'heat-cell' + (c.date === todayStr ? ' is-today' : '');
+
+        let color = HEAT_COLORS[0];
+        if (v > 0) {
+          const ratio = maxVal > 0 ? (v / maxVal) : 1;
+          if (ratio > 0.75) color = HEAT_COLORS[4];
+          else if (ratio > 0.5) color = HEAT_COLORS[3];
+          else if (ratio > 0.25) color = HEAT_COLORS[2];
+          else color = HEAT_COLORS[1];
+        }
+
+        cell.style.background = color;
+        cell.title = \`\${c.date}: \${fmtNum(v)}\${unit}\`;
+        container.appendChild(cell);
+      });
+    }
+
+    // 4. 渲染会话列表
+    function renderSessions(filterText = '', dataset = RAW_CONVERSATIONS) {
+      const listEl = document.getElementById('session-list');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+
+      const filtered = dataset.filter(c => {
+        const q = filterText.toLowerCase();
+        const ws = (c.workspaces || []).join(' ');
+        const models = (c.models || []).join(' ');
+        return (c.title || '').toLowerCase().includes(q) 
+          || ws.toLowerCase().includes(q)
+          || models.toLowerCase().includes(q);
+      });
+
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<div class="text-center text-xs opacity-60 py-8">无符合条件的会话</div>';
+        return;
+      }
+
+      filtered.forEach(c => {
+        const item = document.createElement('div');
+        item.className = 'p-2.5 rounded border transition space-y-1 hover:border-indigo-500/50';
+        item.style.background = 'var(--bg-subtle)';
+        item.style.borderColor = 'var(--border-main)';
+
+        const title = c.title || '未命名会话';
+        const steps = c.steps || 0;
+        const gens = c.genCalls || 0;
+        const model = (c.models && c.models[0]) || 'gemini-3.8-flash';
+        const tokens = c.tokens || {};
+        const cacheRead = tokens.cacheRead || 0;
+        const inputTokens = tokens.input || 0;
+        const totalIn = cacheRead + inputTokens;
+        const hitRate = totalIn > 0 ? ((cacheRead / totalIn) * 100).toFixed(1) : '0';
+        const dateStr = c.lastModified ? new Date(c.lastModified).toLocaleDateString() : '';
+
+        item.innerHTML = \`
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-semibold truncate max-w-[280px]" title="\${title}">\${title}</h3>
+            <span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">\${model}</span>
+          </div>
+          <div class="flex items-center justify-between text-[10px]" style="color: var(--text-muted)">
+            <div class="flex items-center gap-1.5">
+              <span>\${steps} 步</span> · <span>\${gens} 次生成</span> · <span>命中: <b class="text-emerald-600 dark:text-emerald-400 font-mono">\${hitRate}%</b></span>
+            </div>
+            <span class="font-mono">\${dateStr}</span>
+          </div>
+        \`;
+        listEl.appendChild(item);
+      });
+    }
+
+    // 渲染按模型汇总表格
+    function renderModelsTable(byModel) {
+      const tbody = document.getElementById('models-table-body');
+      if (!tbody) return;
+      const list = Object.values(byModel || {});
+      if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center opacity-60">暂无数据</td></tr>';
+        return;
+      }
+      tbody.innerHTML = list.map(m => {
+        const name = m.model;
+        const calls = m.genCalls || 0;
+        const inTok = fmtNum(m.tokens?.input || 0);
+        const outTok = fmtNum(m.tokens?.output || 0);
+        const cacheTok = fmtNum(m.tokens?.cacheRead || 0);
+        const totalIn = (m.tokens?.input || 0) + (m.tokens?.cacheRead || 0);
+        const hitRate = totalIn > 0 ? (((m.tokens?.cacheRead || 0) / totalIn) * 100).toFixed(1) + '%' : '—';
+        return \`
+          <tr class="hover:bg-black/5 dark:hover:bg-white/5 transition">
+            <td class="py-2 font-mono font-medium">\${name}</td>
+            <td class="py-2 text-right opacity-70 font-mono">\${calls}</td>
+            <td class="py-2 text-right font-mono">\${inTok}</td>
+            <td class="py-2 text-right text-purple-600 dark:text-purple-400 font-mono">\${outTok}</td>
+            <td class="py-2 text-right text-emerald-600 dark:text-emerald-400 font-mono">\${cacheTok}</td>
+            <td class="py-2 text-right font-bold text-emerald-600 dark:text-emerald-400 font-mono">\${hitRate}</td>
+          </tr>
+        \`;
+      }).join('');
+    }
+
+    // 5. 实时动态同步与反推更新逻辑
+    function updateQuotaUI(quotaData) {
+      if (!quotaData || !quotaData.groups) return;
+      if (quotaData.port) {
+        const portEl = document.getElementById('ls-port-label');
+        if (portEl) portEl.textContent = quotaData.port;
+      }
+
+      for (const group of quotaData.groups) {
+        if (group.displayName?.includes('Gemini')) {
+          for (const b of group.buckets || []) {
+            const frac = b.remainingFraction ?? 1;
+            const resetStr = formatResetTime(b.resetTime);
+            const proj = calcQuotaProjection(frac, b.window);
+
+            if (b.bucketId === 'gemini-weekly') {
+              const elVal = document.getElementById('gemini-weekly-val');
+              const elBar = document.getElementById('gemini-weekly-bar');
+              const elReset = document.getElementById('gemini-weekly-reset');
+              const elUsed = document.getElementById('gemini-weekly-used');
+              const elRemTok = document.getElementById('gemini-weekly-rem-tok');
+              const elCalls = document.getElementById('gemini-weekly-calls-est');
+              const elCap = document.getElementById('gemini-weekly-cap');
+
+              if (elVal) elVal.textContent = proj.remPct;
+              if (elBar) elBar.style.width = proj.remPct;
+              if (elRemTok) elRemTok.textContent = proj.remTokStr;
+              if (elCalls) elCalls.textContent = \`≈ 还能调用 \${proj.remCalls.toLocaleString()} 次\`;
+              if (elCap) elCap.textContent = \`周总预算 ≈ \${proj.capStr}\`;
+              if (elReset && resetStr) elReset.textContent = '重置: ' + resetStr;
+              if (elUsed) elUsed.textContent = '已用: ' + proj.usedPct;
+
+              const trendWeekly = document.getElementById('trend-label-weekly');
+              if (trendWeekly) trendWeekly.textContent = \`● 周配额 (\${proj.remPct})\`;
+
+            } else if (b.bucketId === 'gemini-5h') {
+              const elVal = document.getElementById('gemini-5h-val');
+              const elBar = document.getElementById('gemini-5h-bar');
+              const elReset = document.getElementById('gemini-5h-reset');
+              const elUsed = document.getElementById('gemini-5h-used');
+              const elRemTok = document.getElementById('gemini-5h-rem-tok');
+              const elCalls = document.getElementById('gemini-5h-calls-est');
+              const elCap = document.getElementById('gemini-5h-cap');
+
+              if (elVal) elVal.textContent = proj.remPct;
+              if (elBar) elBar.style.width = proj.remPct;
+              if (elRemTok) elRemTok.textContent = proj.remTokStr;
+              if (elCalls) elCalls.textContent = \`≈ 还能调用 \${proj.remCalls.toLocaleString()} 次\`;
+              if (elCap) elCap.textContent = \`5h预算容量 ≈ \${proj.capStr}\`;
+              if (elReset && resetStr) elReset.textContent = '重置: ' + resetStr;
+              if (elUsed) elUsed.textContent = '已用: ' + proj.usedPct;
+
+              const trend5h = document.getElementById('trend-label-5h');
+              if (trend5h) trend5h.textContent = \`● 5小时滚动 (\${proj.remPct})\`;
+
+              const m38 = document.getElementById('m-gemini-38');
+              const m37 = document.getElementById('m-gemini-37');
+              const m31 = document.getElementById('m-gemini-31');
+              if (m38) m38.innerHTML = \`\${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~\${proj.remTokStr})</span>\`;
+              if (m37) m37.innerHTML = \`\${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~\${proj.remTokStr})</span>\`;
+              if (m31) m31.innerHTML = \`\${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~\${proj.remTokStr})</span>\`;
+            }
+          }
+        }
+      }
+    }
+
+    function handleFullUpdate(allData) {
+      if (allData.quota) updateQuotaUI(allData.quota);
+      if (allData.conversations) {
+        const c = allData.conversations;
+        RAW_CONVERSATIONS = c.conversations || [];
+        RAW_DAILY = Object.values(c.byDay || {});
+        RAW_BY_MODEL = c.byModel || {};
+
+        document.getElementById('sum-sessions').textContent = RAW_CONVERSATIONS.length;
+        document.getElementById('sum-steps').textContent = fmtNum(c.totals?.steps || 0);
+        document.getElementById('sum-gens').textContent = fmtNum(c.totals?.genCalls || 0);
+        document.getElementById('sum-models').textContent = Object.keys(RAW_BY_MODEL).length + ' 种';
+        document.getElementById('session-count-tag').textContent = \`SQLite 本地只读 · \${RAW_CONVERSATIONS.length} 个会话\`;
+
+        applyFilter(currentFilterDays);
+        renderHeatmap();
+        renderModelsTable(RAW_BY_MODEL);
+      }
+    }
+
+    async function pollLiveQuota() {
+      try {
+        const res = await fetch('http://127.0.0.1:19388/api/quota');
+        if (res.ok) {
+          const data = await res.json();
+          updateQuotaUI(data);
+          document.getElementById('daemon-badge').className = 'px-1.5 py-0.2 text-[10px] font-medium bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded-full border border-emerald-500/30 flex items-center gap-1';
+          document.getElementById('daemon-dot').className = 'w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse';
+          document.getElementById('daemon-status-text').textContent = '实时连线中 (127.0.0.1:19388)';
+          document.getElementById('last-updated').textContent = '更新于 ' + new Date().toLocaleTimeString();
+        }
+      } catch (err) {
+        document.getElementById('daemon-badge').className = 'px-1.5 py-0.2 text-[10px] font-medium bg-amber-500/15 text-amber-600 dark:text-amber-400 rounded-full border border-amber-500/30 flex items-center gap-1';
+        document.getElementById('daemon-dot').className = 'w-1.5 h-1.5 rounded-full bg-amber-500';
+        document.getElementById('daemon-status-text').textContent = '本地快照模式 (守护服务断开)';
+      }
+    }
+
+    document.getElementById('session-search')?.addEventListener('input', (e) => {
+      applyFilter(currentFilterDays);
+    });
+
+    // 页面初次加载时全量同步
+    async function initDashboard() {
+      try {
+        const res = await fetch('http://127.0.0.1:19388/api/all');
+        if (res.ok) {
+          const allData = await res.json();
+          handleFullUpdate(allData);
+        }
+      } catch (e) {
+        console.warn('Initial fetch waiting for daemon...', e);
+      }
+    }
+
+    initDashboard();
+
+    // 启动 3 秒高频实时轮询
+    setInterval(pollLiveQuota, 3000);
+
+    document.getElementById('refresh-btn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('refresh-btn');
+      btn.classList.add('animate-spin');
+      try {
+        const res = await fetch('http://127.0.0.1:19388/api/all');
+        if (res.ok) {
+          const allData = await res.json();
+          handleFullUpdate(allData);
+        }
+      } catch (e) {}
+      setTimeout(() => {
+        btn.classList.remove('animate-spin');
+        document.getElementById('last-updated').textContent = '更新于 ' + new Date().toLocaleTimeString();
+      }, 400);
+    });
+  </script>
+</body>
+</html>

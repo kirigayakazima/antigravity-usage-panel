@@ -1,0 +1,5 @@
+{
+  "name": "antigravity-usage-panel",
+  "description": "反重力实时额度与用量监控面板：实时监控 5 小时滚动配额、周总额度、重置倒计时与 Credits 资产。",
+  "logo": "assets/logo.svg"
+}
