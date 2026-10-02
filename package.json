@@ -8,6 +8,8 @@
     "start": "node daemon.mjs",
     "hud": "powershell -ExecutionPolicy Bypass -NoProfile -File ./start-hud.ps1",
     "dashboard": "start http://127.0.0.1:19388",
+    "inject:install": "node ./bin/inject-install.mjs",
+    "inject:uninstall": "node ./bin/inject-uninstall.mjs",
     "dev": "node daemon.mjs"
   },
   "keywords": [
@@ -19,5 +21,8 @@
     "electron-plugin"
   ],
   "author": "kirigayakazima",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@electron/asar": "^4.3.1"
+  }
 }
