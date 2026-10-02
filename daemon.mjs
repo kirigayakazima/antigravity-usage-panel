@@ -119,11 +119,37 @@ async function getQuota() {
       throw new Error(`HTTP ${res.status}`);
     }
 
+    let userStatus = null;
+    try {
+      const uRes = await fetch(`http://127.0.0.1:${port}/exa.language_server_pb.LanguageServerService/GetUserStatus`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-codeium-csrf-token': csrf
+        },
+        body: '{}',
+        signal: AbortSignal.timeout(1500)
+      });
+      if (uRes.ok) {
+        userStatus = await uRes.json();
+      }
+    } catch (e) {}
+
+    const us = (userStatus && (userStatus.userStatus ?? userStatus)) ?? {};
+    const planInfo = (us.planStatus && us.planStatus.planInfo) ?? {};
+
     const data = await res.json();
     lastQuotaData = {
       port,
       timestamp: now,
       raw: data,
+      account: {
+        name: us.name || '',
+        email: us.email || '',
+        tier: planInfo.planTier || '',
+        planName: planInfo.planName || ''
+      },
+      credits: us.credits || null,
       groups: data.groups || data.response?.groups || []
     };
     lastQuotaTime = now;
