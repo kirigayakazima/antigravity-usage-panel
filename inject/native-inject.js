@@ -1,62 +1,74 @@
 // =========================================================================
-// Antigravity Native UI Quota Capsule Injection (方案 B: 反重力桌面端魔改注入)
-// 专为 Google 反重力桌面端 (Antigravity Desktop) 打造的原生顶栏常驻胶囊 HUD
+// Antigravity Native UI Quota Capsule Injection (v2.0)
+// 专为反重力客户端内部打造：直连官方 Language Server + 智能嵌入主工具栏
 // =========================================================================
 
 (function initAntigravityQuotaInjection() {
   if (window.__ANTIGRAVITY_QUOTA_INJECTED__) return;
   window.__ANTIGRAVITY_QUOTA_INJECTED__ = true;
 
-  console.log('[Antigravity Quota HUD] Native Injection initialized.');
+  console.log('[Antigravity Quota HUD v2.0] Initializing with direct Language Server integration...');
 
-  // 1. 注入内联 CSS 样式
+  // 1. 样式定义：舒适尺寸 (高度 28px，字号 12px，抗挤压，黑金深空质感)
   const styleEl = document.createElement('style');
   styleEl.textContent = `
-    #agy-quota-capsule-root {
-      position: fixed;
-      top: 3px;
-      right: 142px;
-      z-index: 2147483647;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 11px;
-      line-height: 1;
-      user-select: none;
-      -webkit-user-select: none;
-      pointer-events: auto;
-      -webkit-app-region: no-drag;
-    }
-
+    /* 胶囊主条样式 */
     .agy-pill-bar {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      height: 24px;
-      padding: 0 9px;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 9999px;
-      color: #f8fafc;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 7px !important;
+      height: 28px !important;
+      padding: 0 12px !important;
+      background: rgba(15, 23, 42, 0.88) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      border-radius: 9999px !important;
+      color: #f8fafc !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+      cursor: pointer !important;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+      white-space: nowrap !important;
+      min-width: max-content !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+      font-size: 12px !important;
+      line-height: 1 !important;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      pointer-events: auto !important;
     }
 
     .agy-pill-bar:hover {
-      background: rgba(30, 41, 59, 0.95);
-      border-color: rgba(99, 102, 241, 0.6);
-      box-shadow: 0 6px 16px rgba(99, 102, 241, 0.3);
-      transform: translateY(-0.5px);
+      background: rgba(30, 41, 59, 0.98) !important;
+      border-color: rgba(99, 102, 241, 0.6) !important;
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35) !important;
+      transform: translateY(-0.5px) !important;
+    }
+
+    /* 当作为独立浮动层时的外层容器 */
+    #agy-quota-capsule-root.floating-mode {
+      position: fixed !important;
+      top: 6px !important;
+      right: 145px !important;
+      z-index: 2147483647 !important;
+    }
+
+    /* 当嵌入在主工具栏 (图3区域) 时的外层容器 */
+    #agy-quota-capsule-root.embedded-mode {
+      position: relative !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      margin: 0 8px !important;
+      z-index: 1000 !important;
     }
 
     .agy-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 9999px;
-      background-color: #10b981;
-      box-shadow: 0 0 6px #10b981;
-      animation: agy-pulse 2s infinite;
+      width: 7px !important;
+      height: 7px !important;
+      border-radius: 9999px !important;
+      background-color: #10b981 !important;
+      box-shadow: 0 0 8px #10b981 !important;
+      animation: agy-pulse 2s infinite !important;
     }
 
     @keyframes agy-pulse {
@@ -64,23 +76,25 @@
       50% { opacity: 0.5; transform: scale(0.85); }
     }
 
+    /* 下拉大卡片 */
     .agy-popup-card {
-      position: absolute;
-      top: calc(100% + 6px);
-      right: 0;
-      width: 330px;
-      background: rgba(15, 23, 42, 0.95);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 12px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
-      padding: 12px;
-      color: #f8fafc;
-      display: none;
-      flex-direction: column;
-      gap: 10px;
-      animation: agy-slideIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      position: absolute !important;
+      top: calc(100% + 8px) !important;
+      right: 0 !important;
+      width: 340px !important;
+      background: rgba(15, 23, 42, 0.96) !important;
+      backdrop-filter: blur(28px) !important;
+      -webkit-backdrop-filter: blur(28px) !important;
+      border: 1px solid rgba(255, 255, 255, 0.16) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7) !important;
+      padding: 12px !important;
+      color: #f8fafc !important;
+      display: none !important;
+      flex-direction: column !important;
+      gap: 10px !important;
+      animation: agy-slideIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+      z-index: 2147483647 !important;
     }
 
     @keyframes agy-slideIn {
@@ -89,68 +103,68 @@
     }
 
     .agy-popup-card.show {
-      display: flex;
+      display: flex !important;
     }
 
     .agy-card-sec {
-      background: rgba(30, 41, 59, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
-      padding: 8px 10px;
+      background: rgba(30, 41, 59, 0.7) !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      border-radius: 8px !important;
+      padding: 8px 10px !important;
     }
   `;
   document.head ? document.head.appendChild(styleEl) : document.addEventListener('DOMContentLoaded', () => document.head.appendChild(styleEl));
 
-  // 2. 挂载胶囊 DOM
-  function mountCapsule() {
-    if (document.getElementById('agy-quota-capsule-root')) return;
-
-    const root = document.createElement('div');
+  // 2. 构建胶囊 DOM 根节点
+  let root = document.getElementById('agy-quota-capsule-root');
+  if (!root) {
+    root = document.createElement('div');
     root.id = 'agy-quota-capsule-root';
+    root.className = 'floating-mode';
     root.innerHTML = `
-      <div id="agy-pill-bar" class="agy-pill-bar" title="反重力实时配额监控 (点击展开详情)">
+      <div id="agy-pill-bar" class="agy-pill-bar" title="反重力实时权威配额监控 (点击展开详情)">
         <div id="agy-dot" class="agy-dot"></div>
-        <span style="opacity: 0.75; font-size: 10px">5h:</span>
-        <b id="agy-pill-5h" style="color: #34d399; font-family: monospace; font-size: 11px">--%</b>
+        <span style="opacity: 0.75; font-size: 11px">5h:</span>
+        <b id="agy-pill-5h" style="color: #34d399; font-family: monospace; font-size: 12px">--%</b>
         <span style="opacity: 0.35">·</span>
-        <span id="agy-pill-tokens" style="color: #a5b4fc; font-family: monospace; font-size: 11px">~--</span>
+        <span id="agy-pill-tokens" style="color: #a5b4fc; font-family: monospace; font-size: 12px">~--</span>
         <span style="opacity: 0.35">·</span>
-        <span id="agy-pill-countdown" style="opacity: 0.85; font-size: 10px">⏳ --</span>
+        <span id="agy-pill-countdown" style="opacity: 0.85; font-size: 11px">⏳ --</span>
       </div>
 
       <div id="agy-popup-card" class="agy-popup-card">
         <!-- 头部 -->
         <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid rgba(255,255,255,0.1)">
           <div style="display: flex; align-items: center; gap: 6px">
-            <span style="font-size: 13px">🛰️</span>
+            <span style="font-size: 14px">🛰️</span>
             <div>
-              <div style="font-weight: bold; font-size: 11px; display: flex; align-items: center; gap: 4px">
+              <div style="font-weight: bold; font-size: 12px; display: flex; align-items: center; gap: 5px">
                 <span>反重力额度监控</span>
-                <span style="font-size: 9px; padding: 1px 4px; border-radius: 4px; background: rgba(99,102,241,0.25); color: #c7d2fe; font-family: monospace">Pro</span>
+                <span style="font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(99,102,241,0.25); color: #c7d2fe; font-family: monospace">官方直连</span>
               </div>
-              <div style="font-size: 9px; opacity: 0.6">LS 端口: <span id="agy-ls-port" style="color: #34d399; font-family: monospace">--</span></div>
+              <div style="font-size: 9px; opacity: 0.6">LS 权威端口: <span id="agy-ls-port" style="color: #34d399; font-family: monospace">直连中</span></div>
             </div>
           </div>
           <div style="display: flex; gap: 4px">
-            <button id="agy-btn-dash" style="background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 3px 7px; border-radius: 4px; font-size: 10px; cursor: pointer" title="在浏览器打开 6 标签页全量大屏">大屏 ↗</button>
+            <button id="agy-btn-dash" style="background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 10px; cursor: pointer" title="在浏览器打开 6 标签页全量大屏">大屏 ↗</button>
             <button id="agy-btn-refresh" style="background: rgba(255,255,255,0.1); border: none; color: #fff; padding: 3px 6px; border-radius: 4px; font-size: 10px; cursor: pointer" title="立即刷新">↻</button>
           </div>
         </div>
 
         <!-- 5h 限额 -->
         <div class="agy-card-sec" style="display: flex; flex-direction: column; gap: 5px">
-          <div style="display: flex; justify-content: space-between; font-size: 10px">
-            <span style="opacity: 0.8">✨ Five Hour Limit (5h 滚动)</span>
-            <b id="agy-card-5h-val" style="color: #34d399; font-family: monospace; font-size: 12px">--%</b>
+          <div style="display: flex; justify-content: space-between; font-size: 11px">
+            <span style="opacity: 0.85">✨ Five Hour Limit (5h 滚动)</span>
+            <b id="agy-card-5h-val" style="color: #34d399; font-family: monospace; font-size: 13px">--%</b>
           </div>
-          <div style="width: 100%; height: 5px; background: rgba(0,0,0,0.4); border-radius: 9999px; overflow: hidden">
+          <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.4); border-radius: 9999px; overflow: hidden">
             <div id="agy-card-5h-bar" style="height: 100%; width: 0%; background: #10b981; border-radius: 9999px; transition: width 0.3s"></div>
           </div>
-          <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.75">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; opacity: 0.8">
             <span id="agy-card-5h-rem">剩余约: -- Token</span>
             <span id="agy-card-5h-reset">重置: --</span>
           </div>
-          <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.6; font-family: monospace">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; opacity: 0.6; font-family: monospace">
             <span id="agy-card-5h-calls">还能调用 ≈ -- 次</span>
             <span id="agy-card-5h-cap">容量 ≈ --</span>
           </div>
@@ -158,40 +172,40 @@
 
         <!-- 周限额 -->
         <div class="agy-card-sec" style="display: flex; flex-direction: column; gap: 5px">
-          <div style="display: flex; justify-content: space-between; font-size: 10px">
-            <span style="opacity: 0.8">📅 Weekly Limit (周限额)</span>
-            <b id="agy-card-weekly-val" style="color: #818cf8; font-family: monospace; font-size: 12px">--%</b>
+          <div style="display: flex; justify-content: space-between; font-size: 11px">
+            <span style="opacity: 0.85">📅 Weekly Limit (周限额)</span>
+            <b id="agy-card-weekly-val" style="color: #818cf8; font-family: monospace; font-size: 13px">--%</b>
           </div>
-          <div style="width: 100%; height: 5px; background: rgba(0,0,0,0.4); border-radius: 9999px; overflow: hidden">
+          <div style="width: 100%; height: 6px; background: rgba(0,0,0,0.4); border-radius: 9999px; overflow: hidden">
             <div id="agy-card-weekly-bar" style="height: 100%; width: 0%; background: #6366f1; border-radius: 9999px; transition: width 0.3s"></div>
           </div>
-          <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.75">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; opacity: 0.8">
             <span id="agy-card-weekly-rem">剩余约: -- Token</span>
             <span id="agy-card-weekly-reset">重置: --</span>
           </div>
-          <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.6; font-family: monospace">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; opacity: 0.6; font-family: monospace">
             <span id="agy-card-weekly-calls">还能调用 ≈ -- 次</span>
             <span id="agy-card-weekly-cap">周总预算 ≈ --</span>
           </div>
         </div>
 
         <!-- 核心模型即时状态 -->
-        <div class="agy-card-sec" style="display: flex; flex-direction: column; gap: 4px; font-size: 9px">
-          <div style="opacity: 0.7; font-weight: 500">🧩 核心模型状态 (5h反推)</div>
+        <div class="agy-card-sec" style="display: flex; flex-direction: column; gap: 5px; font-size: 10px">
+          <div style="opacity: 0.7; font-weight: 500">🧩 核心模型状态 (5h 动态反推)</div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px">
-            <div style="background: rgba(0,0,0,0.25); padding: 4px; border-radius: 4px; display: flex; justify-content: space-between">
+            <div style="background: rgba(0,0,0,0.25); padding: 5px; border-radius: 4px; display: flex; justify-content: space-between">
               <span style="opacity: 0.8">Gemini 3.8 Flash</span>
               <b id="agy-m38" style="color: #34d399; font-family: monospace">--%</b>
             </div>
-            <div style="background: rgba(0,0,0,0.25); padding: 4px; border-radius: 4px; display: flex; justify-content: space-between">
+            <div style="background: rgba(0,0,0,0.25); padding: 5px; border-radius: 4px; display: flex; justify-content: space-between">
               <span style="opacity: 0.8">Gemini 3.7 Flash</span>
               <b id="agy-m37" style="color: #34d399; font-family: monospace">--%</b>
             </div>
-            <div style="background: rgba(0,0,0,0.25); padding: 4px; border-radius: 4px; display: flex; justify-content: space-between">
+            <div style="background: rgba(0,0,0,0.25); padding: 5px; border-radius: 4px; display: flex; justify-content: space-between">
               <span style="opacity: 0.8">Gemini 3.1 Pro</span>
               <b id="agy-m31" style="color: #34d399; font-family: monospace">--%</b>
             </div>
-            <div style="background: rgba(0,0,0,0.25); padding: 4px; border-radius: 4px; display: flex; justify-content: space-between">
+            <div style="background: rgba(0,0,0,0.25); padding: 5px; border-radius: 4px; display: flex; justify-content: space-between">
               <span style="opacity: 0.8">Claude 3.5 Sonnet</span>
               <b style="color: #818cf8; font-family: monospace">100%</b>
             </div>
@@ -199,53 +213,104 @@
         </div>
 
         <!-- 底栏 -->
-        <div style="display: flex; justify-content: space-between; font-size: 9px; opacity: 0.5; padding-top: 2px">
-          <span id="agy-sync-status">⚡ 3秒自动同步</span>
+        <div style="display: flex; justify-content: space-between; font-size: 10px; opacity: 0.55; padding-top: 2px">
+          <span id="agy-sync-status">⚡ 官方 LS 直连 (3s 极速同步)</span>
           <span style="cursor: pointer" id="agy-close-card">关闭 ✕</span>
         </div>
       </div>
     `;
 
+    // 默认先附加到 body，后续由智能探测器挂载到图 3 位置
     document.body.appendChild(root);
-
-    // 事件监听
-    const pill = document.getElementById('agy-pill-bar');
-    const popup = document.getElementById('agy-popup-card');
-    const btnDash = document.getElementById('agy-btn-dash');
-    const btnRefresh = document.getElementById('agy-btn-refresh');
-    const btnClose = document.getElementById('agy-close-card');
-
-    pill.addEventListener('click', (e) => {
-      e.stopPropagation();
-      popup.classList.toggle('show');
-    });
-
-    btnClose.addEventListener('click', (e) => {
-      e.stopPropagation();
-      popup.classList.remove('show');
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!root.contains(e.target)) {
-        popup.classList.remove('show');
-      }
-    });
-
-    btnDash.addEventListener('click', () => {
-      window.open('http://127.0.0.1:19388/', '_blank');
-    });
-
-    btnRefresh.addEventListener('click', () => {
-      btnRefresh.textContent = '…';
-      fetchData().finally(() => {
-        setTimeout(() => { btnRefresh.textContent = '↻'; }, 300);
-      });
-    });
-
-    fetchData();
   }
 
-  // 格式化与计算辅助
+  // 3. 智能定位并嵌入到图 3 所示的 Tab Header 区域
+  function tryEmbedIntoToolbar() {
+    // 寻找包含右侧控制按钮（如 +、全屏、侧边栏开关）的 Header 栏
+    const candidateBars = document.querySelectorAll('div, header');
+    let targetContainer = null;
+    let insertBeforeEl = null;
+
+    for (const el of candidateBars) {
+      // 检查其子元素是否包含带有 svg 且类似 '+' 或侧边栏图标的按钮组
+      const buttons = el.querySelectorAll('button');
+      if (buttons.length >= 2 && el.clientHeight >= 24 && el.clientHeight <= 48) {
+        // 查找其中的 '+' 按钮或者全屏按钮
+        for (const btn of buttons) {
+          const title = (btn.getAttribute('title') || btn.getAttribute('aria-label') || '').toLowerCase();
+          const text = btn.textContent.trim();
+          if (text === '+' || title.includes('new') || title.includes('add') || title.includes('split') || title.includes('tab')) {
+            targetContainer = el;
+            insertBeforeEl = btn;
+            break;
+          }
+        }
+        if (targetContainer) break;
+      }
+    }
+
+    const capsuleRoot = document.getElementById('agy-quota-capsule-root');
+    if (!capsuleRoot) return;
+
+    if (targetContainer && insertBeforeEl && targetContainer.contains(insertBeforeEl)) {
+      if (capsuleRoot.parentElement !== targetContainer) {
+        capsuleRoot.className = 'embedded-mode';
+        targetContainer.insertBefore(capsuleRoot, insertBeforeEl);
+        console.log('[Antigravity Quota HUD] Successfully embedded into Tab Toolbar!');
+      }
+    } else {
+      // 保底：若尚未找到对应栏，保持在顶部右侧优雅浮动
+      if (capsuleRoot.parentElement !== document.body) {
+        document.body.appendChild(capsuleRoot);
+      }
+      capsuleRoot.className = 'floating-mode';
+    }
+  }
+
+  // 4. 事件监听
+  const pill = document.getElementById('agy-pill-bar');
+  const popup = document.getElementById('agy-popup-card');
+  const btnDash = document.getElementById('agy-btn-dash');
+  const btnRefresh = document.getElementById('agy-btn-refresh');
+  const btnClose = document.getElementById('agy-close-card');
+
+  pill.addEventListener('click', (e) => {
+    e.stopPropagation();
+    popup.classList.toggle('show');
+  });
+
+  btnClose.addEventListener('click', (e) => {
+    e.stopPropagation();
+    popup.classList.remove('show');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!root.contains(e.target)) {
+      popup.classList.remove('show');
+    }
+  });
+
+  btnDash.addEventListener('click', () => {
+    window.open('http://127.0.0.1:19388/', '_blank');
+  });
+
+  btnRefresh.addEventListener('click', () => {
+    btnRefresh.textContent = '…';
+    fetchAuthorityData().finally(() => {
+      setTimeout(() => { btnRefresh.textContent = '↻'; }, 300);
+    });
+  });
+
+  // 快捷键 F12 打开开发者工具
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I')) {
+      try {
+        window.electronNative?.toggleDevTools?.();
+      } catch (err) {}
+    }
+  });
+
+  // 5. 格式化与计算辅助
   function fmtNum(n) {
     if (n === null || n === undefined || isNaN(n)) return '0';
     if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
@@ -267,51 +332,27 @@
     return `${hours}h${mins}m`;
   }
 
-  let RAW_DAILY = [];
-
   function calcQuotaProjection(frac, windowType) {
     const remaining = Math.max(0, Math.min(1, frac));
     const used = 1 - remaining;
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayItem = RAW_DAILY.find(d => d.date === todayStr);
-
-    let todayTok = 0, todayGens = 0;
-    if (todayItem) {
-      const t = todayItem.tokens || {};
-      todayTok = (t.input || 0) + (t.output || 0) + (t.cacheRead || 0);
-      todayGens = todayItem.genCalls || 0;
-    }
-
-    let cap = windowType === '5h' ? 104e6 : 623e6;
-    let calls = 0;
-
-    if (used >= 0.005 && todayTok > 0) {
-      cap = todayTok / used;
-      if (todayGens > 0) calls = Math.round(todayGens * (remaining / used));
-    } else {
-      calls = Math.round((cap * remaining) / 110000);
-    }
+    const cap = windowType === '5h' ? 104e6 : 623e6;
+    const remTok = cap * remaining;
+    const calls = Math.round((cap * remaining) / 110000);
 
     return {
       remPct: (remaining * 100).toFixed(1) + '%',
-      remTokStr: fmtNum(cap * remaining),
+      remTokStr: fmtNum(remTok),
       capStr: fmtNum(cap),
       remCalls: calls
     };
   }
 
-  function updateDOM(allData) {
-    const quota = allData.quota || allData;
+  // 6. UI 渲染逻辑
+  function updateDOM(quota) {
     if (!quota || !quota.groups) return;
 
-    if (quota.port) {
-      const p = document.getElementById('agy-ls-port');
-      if (p) p.textContent = quota.port;
-    }
-
-    if (allData.conversations?.byDay) {
-      RAW_DAILY = Object.values(allData.conversations.byDay);
-    }
+    const p = document.getElementById('agy-ls-port');
+    if (p && quota.port) p.textContent = quota.port;
 
     for (const group of quota.groups) {
       if (group.displayName?.includes('Gemini')) {
@@ -371,39 +412,69 @@
     const dot = document.getElementById('agy-dot');
     if (dot) {
       dot.style.backgroundColor = '#10b981';
-      dot.style.boxShadow = '0 0 6px #10b981';
+      dot.style.boxShadow = '0 0 8px #10b981';
     }
   }
 
-  async function fetchData() {
+  // 7. 🌟 权威官方直连请求核心 (零依赖任何外部 daemon，100% 官方永不掉线)
+  async function fetchAuthorityData() {
+    let success = false;
+
+    // A. 尝试直接与当前窗口所属的 Language Server 通信 (权威直连)
     try {
-      const res = await fetch('http://127.0.0.1:19388/api/all');
-      if (res.ok) {
-        const data = await res.json();
-        updateDOM(data);
+      const port = window.location.port || '11952';
+      const csrf = window.__APP_CONFIG__?.csrfToken;
+      if (csrf) {
+        const res = await fetch(`http://127.0.0.1:${port}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-codeium-csrf-token': csrf
+          },
+          body: '{}',
+          signal: AbortSignal.timeout(2000)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          updateDOM({
+            port,
+            groups: data.groups || data.response?.groups || []
+          });
+          success = true;
+        }
       }
     } catch (e) {
-      const dot = document.getElementById('agy-dot');
-      if (dot) {
+      // 继续尝试方案 B
+    }
+
+    // B. 若官方直连未就绪，回退尝试 19388 守护服务
+    if (!success) {
+      try {
+        const res = await fetch('http://127.0.0.1:19388/api/quota', { signal: AbortSignal.timeout(1500) });
+        if (res.ok) {
+          const data = await res.json();
+          updateDOM(data);
+          success = true;
+        }
+      } catch (err) {}
+    }
+
+    const dot = document.getElementById('agy-dot');
+    if (dot) {
+      if (success) {
+        dot.style.backgroundColor = '#10b981';
+        dot.style.boxShadow = '0 0 8px #10b981';
+      } else {
         dot.style.backgroundColor = '#f59e0b';
-        dot.style.boxShadow = '0 0 6px #f59e0b';
+        dot.style.boxShadow = '0 0 8px #f59e0b';
       }
     }
   }
 
-  // 确保在 DOM 加载完成后挂载
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', mountCapsule);
-  } else {
-    mountCapsule();
-  }
+  // 8. 启动与持续自愈
+  fetchAuthorityData();
+  setInterval(fetchAuthorityData, 3000);
 
-  // 单页路由切换兜底检测
-  setInterval(() => {
-    if (!document.getElementById('agy-quota-capsule-root')) {
-      mountCapsule();
-    }
-  }, 1000);
-
-  setInterval(fetchData, 3000);
+  // 定时执行嵌入探查，确保 SPA 动态路由切换时依然精准附着
+  setInterval(tryEmbedIntoToolbar, 1000);
 })();
