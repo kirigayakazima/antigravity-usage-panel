@@ -482,28 +482,35 @@
   `;
   document.head ? document.head.appendChild(styleEl) : document.addEventListener('DOMContentLoaded', () => document.head.appendChild(styleEl));
 
-  // 3. 构建微晶胶囊 DOM 根节点 (支持 2.2s 平滑垂直翻滚轮播: 5h余量 vs 今日用量)
+  // 3. 构建微晶胶囊 DOM 根节点 (支持 2.2s 平滑垂直翻滚轮播: Gemini 5h vs Claude/GPT 5h vs 今日用量)
   const capsuleRoot = document.createElement('div');
   capsuleRoot.id = 'agy-quota-capsule-root';
   capsuleRoot.innerHTML = `
-    <div id="agy-pill-bar" class="agy-pill-bar" title="点击在当前页面直接展开全屏配额与用量大屏 (每2.2s动态轮播5h余量与今日总用量)">
+    <div id="agy-pill-bar" class="agy-pill-bar" title="点击在当前页面直接展开全屏配额与用量大屏 (每2.2s动态轮播 Gemini 5h / GPT 5h / 今日用量)">
       <div id="agy-dot" class="agy-dot"></div>
       
       <!-- 动态平滑轮播视窗 (严格垂直居中，绝无切边) -->
       <div class="agy-ticker-viewport">
-        <!-- 视窗 1: 5H 剩余量 (如 2.2% 对应的真实剩余约 2.3M) -->
-        <div id="agy-ticker-item-5h" class="agy-ticker-item active">
-          <span style="color: var(--au-text-muted); font-size: 11px">5h余:</span>
-          <b id="agy-pill-5h" style="color: var(--au-emerald); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">--%</b>
+        <!-- 视窗 1: Gemini 5H 剩余量 -->
+        <div id="agy-ticker-item-g5h" class="agy-ticker-item active">
+          <span style="color: var(--au-text-muted); font-size: 11px">Gemini 5h:</span>
+          <b id="agy-pill-g5h" style="color: var(--au-emerald); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">--%</b>
           <span style="opacity: 0.3">·</span>
-          <b id="agy-pill-5h-tokens" style="color: var(--au-brand); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">~--</b>
+          <b id="agy-pill-g5h-tokens" style="color: var(--au-brand); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">~--</b>
         </div>
-        <!-- 视窗 2: 今日总消耗量 (如 今日: 1.06亿 · 85.6%命中) -->
+        <!-- 视窗 2: Claude/GPT 5H 剩余量 -->
+        <div id="agy-ticker-item-3p5h" class="agy-ticker-item enter-down">
+          <span style="color: var(--au-text-muted); font-size: 11px">GPT/Claude 5h:</span>
+          <b id="agy-pill-3p5h" style="color: var(--au-orange); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">--%</b>
+          <span style="opacity: 0.3">·</span>
+          <b id="agy-pill-3p5h-tokens" style="color: var(--au-brand); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">~--</b>
+        </div>
+        <!-- 视窗 3: 今日总消耗量与缓存命中率 -->
         <div id="agy-ticker-item-today" class="agy-ticker-item enter-down">
           <span style="color: var(--au-text-muted); font-size: 11px">今日用量:</span>
           <b id="agy-pill-today-tokens" style="color: var(--au-purple); font-variant-numeric: tabular-nums; font-size: 12px; font-weight: 700">--</b>
           <span style="opacity: 0.3">·</span>
-          <span id="agy-pill-today-hit" style="color: var(--au-emerald); font-size: 11px; font-weight: 600">--命中</span>
+          <span id="agy-pill-today-hit" style="color: var(--au-emerald); font-size: 11px; font-weight: 600">--%命中</span>
         </div>
       </div>
 
@@ -531,48 +538,54 @@
         </div>
       </div>
 
-      <!-- 顶部 KPI 宏观指标卡片 -->
+      <!-- 顶部 KPI 宏观指标卡片 (完全对齐 DSH 5卡片矩阵) -->
       <div class="au-kpi-bar">
         <div style="display: flex; align-items: center; justify-content: space-between;">
           <div class="au-btn-group" id="kpi-range-group">
-            <button class="au-btn" data-days="1">今天</button>
+            <button class="au-btn on" data-days="1">今天</button>
             <button class="au-btn" data-days="7">7 天</button>
             <button class="au-btn" data-days="14">14 天</button>
             <button class="au-btn" data-days="30">近 30 天</button>
             <button class="au-btn" data-days="90">近 90 天</button>
-            <button class="au-btn on" data-days="0">全部</button>
+            <button class="au-btn" data-days="0">全部</button>
           </div>
           <span style="font-size: 11px; color: var(--au-text-muted)" id="kpi-range-hint">统计自反重力离线会话库</span>
         </div>
 
         <div class="au-kpis">
-          <div class="au-kpi">
-            <div class="au-kpi-label" id="kpi-tokens-label">总消耗 Token</div>
-            <div class="au-kpi-value" id="kpi-tokens" style="color: var(--au-brand)">--</div>
-            <div class="au-stack">
-              <i id="kpi-bar-in" style="background: var(--au-brand); width: 0%" title="未命中输入"></i>
-              <i id="kpi-bar-cache" style="background: var(--au-emerald); width: 0%" title="缓存读取"></i>
-              <i id="kpi-bar-out" style="background: var(--au-purple); width: 0%" title="模型输出"></i>
+          <div class="au-kpi" id="kpi-card-total">
+            <div class="au-kpi-label" id="kpi-tokens-label">总 Token</div>
+            <div class="au-kpi-value" id="kpi-tokens" style="color: var(--au-text-main)">--</div>
+            <div class="au-kpi-sub" id="kpi-tokens-sub">未命中 -- · 缓存 -- · 输出 --</div>
+            <div class="au-stack" style="margin-top: 6px;">
+              <i id="kpi-bar-in" style="background: #16a34a; width: 0%" title="未命中输入"></i>
+              <i id="kpi-bar-cache" style="background: #3b82f6; width: 0%" title="缓存命中"></i>
+              <i id="kpi-bar-out" style="background: #8b5cf6; width: 0%" title="输出"></i>
             </div>
-            <div class="au-kpi-sub" id="kpi-tokens-sub">命中率: --</div>
           </div>
 
-          <div class="au-kpi">
-            <div class="au-kpi-label">离线会话数</div>
-            <div class="au-kpi-value" id="kpi-convs">--</div>
-            <div class="au-kpi-sub" id="kpi-convs-sub">共 -- 步生成动作</div>
+          <div class="au-kpi" id="kpi-card-hit">
+            <div class="au-kpi-label">缓存命中率</div>
+            <div class="au-kpi-value" id="kpi-hit" style="color: var(--au-emerald)">--%</div>
+            <div class="au-kpi-sub" id="kpi-hit-sub">命中 -- / 未命中 --</div>
           </div>
 
-          <div class="au-kpi">
+          <div class="au-kpi" id="kpi-card-calls">
             <div class="au-kpi-label">模型调用次数</div>
             <div class="au-kpi-value" id="kpi-calls">--</div>
-            <div class="au-kpi-sub" id="kpi-calls-sub">平均每会话 -- 步</div>
+            <div class="au-kpi-sub" id="kpi-calls-sub">-- 天内 -- 天有活动</div>
           </div>
 
-          <div class="au-kpi">
-            <div class="au-kpi-label">活跃天数统计</div>
-            <div class="au-kpi-value" id="kpi-days">--</div>
-            <div class="au-kpi-sub" id="kpi-days-sub">最近活跃: --</div>
+          <div class="au-kpi" id="kpi-card-out">
+            <div class="au-kpi-label">输出 Token</div>
+            <div class="au-kpi-value" id="kpi-out" style="color: var(--au-purple)">--</div>
+            <div class="au-kpi-sub" id="kpi-out-sub">思考 -- · 回复 --</div>
+          </div>
+
+          <div class="au-kpi" id="kpi-card-sessions">
+            <div class="au-kpi-label">会话数</div>
+            <div class="au-kpi-value" id="kpi-convs">--</div>
+            <div class="au-kpi-sub" id="kpi-convs-sub">共 -- 步</div>
           </div>
         </div>
       </div>
@@ -802,25 +815,23 @@
   let RAW_MODELS = [];
   let RAW_WORKSPACES = [];
   let RAW_HISTORY = null;
-  let RAW_HISTORY_KPI = null;  // 用于 KPI 消耗计算的全量历史采样 (range=all)
 
-  let SELECTED_DAYS = 0;
+  let SELECTED_DAYS = 1;  // 默认对齐 DSH 选中「今天」
   let SELECTED_HEAT_METRIC = 'sessions';
   let SELECTED_WS_FILTER = '';
   let SEARCH_QUERY = '';
   let SELECTED_TREND_RANGE = '24h';
 
-  // 6. 辅助计算工具
+  // 6. 辅助计算工具 (完全对齐 DSH 官方规范)
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
   const fmtNum = (v) => {
     const n = num(v);
-    if (n >= 1e8) return (n / 1e8).toFixed(2) + '亿';
+    if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
     if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
-    if (n >= 1e4) return (n / 1e4).toFixed(1) + 'W';
-    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
     return String(Math.round(n));
   };
-  const fmtFull = (v) => num(v).toLocaleString('zh-CN');
+  const fmtFull = (v) => num(v).toLocaleString('en-US');
   const pct = (v, digits = 1) => (num(v) * 100).toFixed(digits) + '%';
   const shortWs = (ws) => {
     if (!ws) return '全局';
@@ -829,14 +840,22 @@
     return parts.slice(-2).join('/') || s;
   };
 
+  const dayKeyOf = (d) => {
+    const date = d instanceof Date ? d : new Date(d);
+    return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+  };
+
   const fmtCountdown = (ms) => {
-    if (typeof ms !== 'number' || ms <= 0) return '已到期';
-    const totalSec = Math.floor(ms / 1000);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
-    if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    if (typeof ms !== 'number' || !Number.isFinite(ms)) return '—';
+    if (ms <= 0) return '已到期';
+    const s = Math.floor(ms / 1000);
+    const d = Math.floor(s / 86400);
+    const h = Math.floor((s % 86400) / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (d > 0) return d + '天' + h + '小时';
+    if (h > 0) return h + '小时' + m + '分';
+    if (m > 0) return m + '分' + (s % 60) + '秒';
+    return (s % 60) + '秒';
   };
 
   const fmtTime = (ts) => {
@@ -854,54 +873,11 @@
     return 'var(--au-red)';
   };
 
-  // 根据当前真实用量动态反推配额桶大致剩余 Token 与满额容量
   function calcQuotaProjection(remainingFraction, bucketId) {
     const remaining = Math.max(0, Math.min(1, num(remainingFraction)));
-    const used = 1 - remaining;
     const bId = String(bucketId || '').toLowerCase();
     const isWeekly = bId.includes('weekly');
-
-    // 统计今天的真实总 Token 消耗
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todayItem = RAW_DAILY.find(d => d.date === todayStr);
-
-    let todayTok = 0, todayCalls = 0;
-    if (todayItem) {
-      const t = todayItem.tokens || {};
-      todayTok = num(t.input) + num(t.output) + num(t.cacheRead);
-      todayCalls = num(todayItem.genCalls);
-    }
-
-    // 统计近 7 天的总 Token 消耗
-    let tokens7d = 0, calls7d = 0;
-    const cutoff7d = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-    for (const d of RAW_DAILY) {
-      if (d.date >= cutoff7d) {
-        if (d.tokens) tokens7d += num(d.tokens.input) + num(d.tokens.output) + num(d.tokens.cacheRead);
-        calls7d += num(d.genCalls);
-      }
-    }
-
-    // 默认基准容量 (5h 基准约 115M，周基准约 650M)
-    let cap = isWeekly ? 623e6 : 104e6;
-    let calls = 0;
-
-    if (isWeekly) {
-      if (used >= 0.005 && tokens7d > 0) {
-        cap = tokens7d / used;
-        if (calls7d > 0) calls = Math.round(calls7d * (remaining / used));
-      } else {
-        calls = Math.round((cap * remaining) / 120000);
-      }
-    } else {
-      if (used >= 0.005 && todayTok > 0) {
-        cap = todayTok / used;
-        if (todayCalls > 0) calls = Math.round(todayCalls * (remaining / used));
-      } else {
-        calls = Math.round((cap * remaining) / 120000);
-      }
-    }
-
+    const cap = isWeekly ? 623e6 : 104e6;
     const remainingTokens = cap * remaining;
 
     return {
@@ -909,185 +885,83 @@
       remTokens: remainingTokens,
       remTokStr: fmtNum(remainingTokens),
       capTokens: cap,
-      capStr: fmtNum(cap),
-      remCalls: calls,
-      remCallsText: calls > 0 ? `还能调用 ≈ ${calls.toLocaleString()} 次` : '额度充裕'
+      capStr: fmtNum(cap)
     };
   }
 
-  // 7. 渲染函数集合
+  // 7. 渲染函数集合 — KPI 口径完全对齐 DSH (antigravity-usage) 的 sumByDay
 
-  /** 从历史采样点计算指定时间范围内的真实额度消耗（分数累加）。
-   *  只累加「下降」段（真实消耗），忽略上升段（重置/恢复）。
-   *  返回 { totalConsumedFraction, bucketDetails: [{id, consumed, cap, tokens}] }
-   */
-  function calcHistoryConsumption(days) {
-    if (!RAW_HISTORY_KPI || !Array.isArray(RAW_HISTORY_KPI.buckets)) return null;
-
-    const buckets = RAW_HISTORY_KPI.buckets;
-    if (buckets.length === 0) return null;
-
-    // 根据 days 选择正确的消耗字段
-    let totalTokens = 0;
-    const details = [];
-
-    for (const bk of buckets) {
-      let consumedFrac = 0;
-      if (days === 1) {
-        consumedFrac = num(bk.consumedToday);
-      } else if (days <= 7) {
-        consumedFrac = num(bk.consumed7d);
-      } else if (days <= 14) {
-        consumedFrac = Math.min(num(bk.consumed), num(bk.consumed7d) * 2.2); // 近似 14d
-      } else if (days <= 30) {
-        consumedFrac = num(bk.consumed); // consumed 是全量，30d 用全量近似
-      } else if (days <= 90) {
-        consumedFrac = num(bk.consumed);
-      } else {
-        consumedFrac = num(bk.consumed);
-      }
-
-      // 用 calcQuotaProjection 的逻辑反推该桶的窗口容量 cap
-      const bId = String(bk.id || '').toLowerCase();
-      const isWeekly = bId.includes('weekly');
-      let cap = isWeekly ? 623e6 : 104e6;
-
-      // 尝试用实际数据反推 cap (与 calcQuotaProjection 类似)
-      if (RAW_QUOTA && RAW_QUOTA.groups) {
-        for (const g of RAW_QUOTA.groups) {
-          for (const b of (g.buckets || [])) {
-            const bid = String(b.bucketId || '').toLowerCase();
-            if (bid === bId) {
-              const remaining = num(b.remainingFraction);
-              const used = 1 - remaining;
-              const todayStr = new Date().toISOString().slice(0, 10);
-              const todayItem = RAW_DAILY.find(d => d.date === todayStr);
-              if (isWeekly) {
-                const cutoff7d = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-                let tokens7d = 0;
-                for (const d of RAW_DAILY) {
-                  if (d.date >= cutoff7d && d.tokens) tokens7d += num(d.tokens.input) + num(d.tokens.output) + num(d.tokens.cacheRead);
-                }
-                if (used >= 0.005 && tokens7d > 0) cap = tokens7d / used;
-              } else {
-                let todayTok = 0;
-                if (todayItem && todayItem.tokens) {
-                  const t = todayItem.tokens;
-                  todayTok = num(t.input) + num(t.output) + num(t.cacheRead);
-                }
-                if (used >= 0.005 && todayTok > 0) cap = todayTok / used;
-              }
-              break;
-            }
-          }
-        }
-      }
-
-      const tokens = consumedFrac * cap;
-      totalTokens += tokens;
-      details.push({ id: bk.id, consumed: consumedFrac, cap, tokens });
-    }
-
-    return { totalTokens, details };
+  function rangeCutoff(days) {
+    if (days === 0) return '';
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (days - 1));
+    return dayKeyOf(d);
   }
 
   function updateKPIs() {
-    // --- 会话聚合数据（用于非 Token 统计：会话数、步数、调用数、活跃天数）---
-    const cutoffMs = SELECTED_DAYS === 0 ? 0 : Date.now() - SELECTED_DAYS * 86400000;
-    const cutoffDate = SELECTED_DAYS === 0 ? '' : new Date(cutoffMs).toISOString().slice(0, 10);
+    const cutoff = rangeCutoff(SELECTED_DAYS);
 
+    // 按日期范围过滤 byDay（完全对齐 DSH 的 sumByDay）
     let filtered = RAW_DAILY;
-    if (cutoffDate) {
-      filtered = RAW_DAILY.filter(d => d.date >= cutoffDate);
+    if (cutoff) {
+      filtered = RAW_DAILY.filter(d => String(d.date) >= cutoff);
     }
 
+    let input = 0, output = 0, cacheRead = 0;
+    let thinking = 0, response = 0;
     let sessions = 0, steps = 0, calls = 0;
+    let activeDays = 0;
+
     for (const d of filtered) {
       sessions += num(d.sessions);
       steps += num(d.steps);
       calls += num(d.genCalls);
+      if (num(d.sessions) > 0 || num(d.genCalls) > 0) activeDays += 1;
+      if (d.tokens) {
+        input += num(d.tokens.input);
+        output += num(d.tokens.output);
+        cacheRead += num(d.tokens.cacheRead);
+        thinking += num(d.tokens.thinking);
+        response += num(d.tokens.response);
+      }
     }
 
-    // --- Token 消耗：混合数据源 ---
+    const prompt = input + cacheRead;
+    const totalAll = prompt + output;
+    const hit = prompt > 0 ? (cacheRead / prompt) : null;
+
+    const rangeNames = { 1: '今天', 7: '7 天', 14: '14 天', 30: '30 天', 90: '90 天', 0: '全部' };
+    const rangeName = rangeNames[SELECTED_DAYS] || `${SELECTED_DAYS} 天`;
+    const rangeText = SELECTED_DAYS === 0 ? '全部历史' : `近 ${rangeName}`;
+
+    // 卡片 1: 总 Token
     const kpiLabel = modalOverlay.querySelector('#kpi-tokens-label');
-    const kpiHint = modalOverlay.querySelector('#kpi-range-hint');
-    let totalAll = 0;
-    let input = 0, output = 0, cacheRead = 0;
-    let hitRate = 0;
-    let isFromHistory = false;
-
-    if (SELECTED_DAYS === 0) {
-      // 「全部」→ 用会话聚合总量（跨所有历史）
-      for (const d of filtered) {
-        if (d.tokens) {
-          input += num(d.tokens.input);
-          output += num(d.tokens.output);
-          cacheRead += num(d.tokens.cacheRead);
-        }
-      }
-      const totalIn = input + cacheRead;
-      totalAll = totalIn + output;
-      hitRate = totalIn > 0 ? (cacheRead / totalIn) : 0;
-
-      if (kpiLabel) kpiLabel.textContent = '历史总消耗 Token';
-      if (kpiHint) kpiHint.textContent = '统计自反重力离线会话库';
-    } else {
-      // 「今天/7天/14天/...」→ 用 history.jsonl 差值算真实消耗
-      const histResult = calcHistoryConsumption(SELECTED_DAYS);
-      if (histResult && histResult.totalTokens > 0) {
-        totalAll = histResult.totalTokens;
-        isFromHistory = true;
-
-        // 会话聚合的命中率仍然有参考价值
-        for (const d of filtered) {
-          if (d.tokens) {
-            input += num(d.tokens.input);
-            output += num(d.tokens.output);
-            cacheRead += num(d.tokens.cacheRead);
-          }
-        }
-        const totalIn = input + cacheRead;
-        hitRate = totalIn > 0 ? (cacheRead / totalIn) : 0;
-      } else {
-        // history 数据不足，fallback 到会话聚合
-        for (const d of filtered) {
-          if (d.tokens) {
-            input += num(d.tokens.input);
-            output += num(d.tokens.output);
-            cacheRead += num(d.tokens.cacheRead);
-          }
-        }
-        const totalIn = input + cacheRead;
-        totalAll = totalIn + output;
-        hitRate = totalIn > 0 ? (cacheRead / totalIn) : 0;
-      }
-
-      const rangeNames = { 1: '今日', 7: '近 7 日', 14: '近 14 日', 30: '近 30 日', 90: '近 90 日' };
-      const rangeName = rangeNames[SELECTED_DAYS] || `近 ${SELECTED_DAYS} 日`;
-      if (kpiLabel) kpiLabel.textContent = `${rangeName}消耗 Token`;
-      if (kpiHint) kpiHint.textContent = isFromHistory ? '来自实时额度采样反推' : '统计自反重力离线会话库 (采样不足时降级)';
-    }
-
+    if (kpiLabel) kpiLabel.textContent = '总 Token';
     modalOverlay.querySelector('#kpi-tokens').textContent = fmtNum(totalAll);
     modalOverlay.querySelector('#kpi-tokens-sub').textContent =
-      `命中率: ${(hitRate * 100).toFixed(1)}% (读取 ${fmtNum(cacheRead)} / 输入 ${fmtNum(input)})`;
+      `未命中输入 ${fmtNum(input)} · 缓存命中 ${fmtNum(cacheRead)} · 输出 ${fmtNum(output)}`;
 
-    const totalBar = Math.max(1, input + cacheRead + output);
+    const totalBar = Math.max(1, totalAll);
     modalOverlay.querySelector('#kpi-bar-in').style.width = ((input / totalBar) * 100).toFixed(1) + '%';
     modalOverlay.querySelector('#kpi-bar-cache').style.width = ((cacheRead / totalBar) * 100).toFixed(1) + '%';
     modalOverlay.querySelector('#kpi-bar-out').style.width = ((output / totalBar) * 100).toFixed(1) + '%';
 
-    modalOverlay.querySelector('#kpi-convs').textContent = fmtNum(sessions);
-    modalOverlay.querySelector('#kpi-convs-sub').textContent = `共 ${fmtNum(steps)} 步动作`;
+    // 卡片 2: 缓存命中率
+    modalOverlay.querySelector('#kpi-hit').textContent = hit === null ? '—' : (hit * 100).toFixed(1) + '%';
+    modalOverlay.querySelector('#kpi-hit-sub').textContent = `命中 ${fmtNum(cacheRead)} / 未命中 ${fmtNum(input)}`;
 
+    // 卡片 3: 模型调用次数
     modalOverlay.querySelector('#kpi-calls').textContent = fmtNum(calls);
-    const avgSteps = sessions > 0 ? (steps / sessions).toFixed(1) : '0';
-    modalOverlay.querySelector('#kpi-calls-sub').textContent = `平均每会话 ${avgSteps} 步`;
+    modalOverlay.querySelector('#kpi-calls-sub').textContent = `${rangeText}内 ${activeDays} 天有活动`;
 
-    const activeDays = filtered.filter(d => num(d.sessions) > 0 || num(d.steps) > 0).length;
-    modalOverlay.querySelector('#kpi-days').textContent = activeDays + ' 天';
-    const lastActive = RAW_DAILY.length > 0 ? RAW_DAILY[RAW_DAILY.length - 1].date : '—';
-    modalOverlay.querySelector('#kpi-days-sub').textContent = `最近活跃: ${lastActive}`;
+    // 卡片 4: 输出 Token
+    modalOverlay.querySelector('#kpi-out').textContent = fmtNum(output);
+    modalOverlay.querySelector('#kpi-out-sub').textContent = `思考 ${fmtNum(thinking)} · 回复 ${fmtNum(response)}`;
+
+    // 卡片 5: 会话数
+    modalOverlay.querySelector('#kpi-convs').textContent = String(sessions);
+    modalOverlay.querySelector('#kpi-convs-sub').textContent = `${rangeText}共 ${steps.toLocaleString('en-US')} 步`;
 
     updateCapsuleDisplay();
   }
@@ -1147,29 +1021,22 @@
           }
         }
 
-        const isWeekly = (b.bucketId || '').includes('weekly');
         bEl.innerHTML = `
           <div class="au-bucket-head">
             <span class="au-bucket-label">${b.displayName || b.bucketId}</span>
-            <div style="display: flex; align-items: baseline; gap: 8px;">
+            <div style="display: flex; align-items: baseline; gap: 6px;">
               <span class="au-bucket-pct" style="color: ${color}">${pct(v)}</span>
-              <span style="font-size: 13px; font-weight: 700; color: var(--au-brand); font-variant-numeric: tabular-nums;">~${proj.remTokStr}</span>
+              <span style="font-size: 11.5px; opacity: 0.8; font-weight: 600; color: var(--au-brand)">~${proj.remTokStr}</span>
             </div>
           </div>
           <div class="au-bar">
-            <div class="au-bar-fill" style="width: ${(v * 100).toFixed(1)}%; background: ${color}"></div>
+            <div class="au-bar-fill" style="width: ${(v * 100).toFixed(2)}%; background: ${color}"></div>
           </div>
           <div class="au-kv">
-            <span class="au-k">剩余预估</span>
-            <span class="au-v" style="color: var(--au-brand); font-weight: 700">约 ${proj.remTokStr} Token <span style="font-size: 10.5px; font-weight: normal; color: var(--au-text-muted)">(${proj.remCallsText})</span></span>
-            <span class="au-k">窗口总额</span>
-            <span class="au-v">约 ${proj.capStr} Token</span>
-            <span class="au-k">已用比例</span>
-            <span class="au-v">${pct(1 - v)}</span>
-            <span class="au-k">重置倒计时</span>
+            <span class="au-k">重置</span>
             <span class="au-v">${resetTimeStr}</span>
-            <span class="au-k">窗口类型</span>
-            <span class="au-v">${b.windowType || (isWeekly ? '周配额周期 (Weekly)' : '5小时滑动窗口 (5-Hour)')}</span>
+            <span class="au-k">已用</span>
+            <span class="au-v">${pct(1 - v)}</span>
           </div>
         `;
         grid.appendChild(bEl);
@@ -1190,7 +1057,7 @@
     renderResetsTab();
   }
 
-  // 胶囊动态垂直平滑轮播 (2.2 秒交替平滑翻滚: 5h余量 vs 今日用量)
+  // 胶囊动态垂直平滑轮播 (2.2 秒交替平滑翻滚: Gemini 5h vs Claude/GPT 5h vs 今日用量)
   let tickerIndex = 0;
   let tickerPaused = false;
   let tickerInterval = null;
@@ -1205,38 +1072,46 @@
 
     tickerInterval = setInterval(() => {
       if (tickerPaused) return;
-      const item5h = capsuleRoot.querySelector('#agy-ticker-item-5h');
-      const itemToday = capsuleRoot.querySelector('#agy-ticker-item-today');
-      if (!item5h || !itemToday) return;
+      const items = [
+        capsuleRoot.querySelector('#agy-ticker-item-g5h'),
+        capsuleRoot.querySelector('#agy-ticker-item-3p5h'),
+        capsuleRoot.querySelector('#agy-ticker-item-today')
+      ].filter(Boolean);
+      if (items.length < 3) return;
 
-      tickerIndex = (tickerIndex + 1) % 2;
-      if (tickerIndex === 0) {
-        // 切回 5h 剩余 (item5h 居中淡入, itemToday 上浮淡出)
-        item5h.className = 'agy-ticker-item active';
-        itemToday.className = 'agy-ticker-item leave-up';
-      } else {
-        // 切到今日用量 (itemToday 居中淡入, item5h 上浮淡出)
-        item5h.className = 'agy-ticker-item leave-up';
-        itemToday.className = 'agy-ticker-item active';
-      }
+      const prevIdx = tickerIndex;
+      tickerIndex = (tickerIndex + 1) % items.length;
+
+      items.forEach((item, idx) => {
+        if (idx === tickerIndex) {
+          item.className = 'agy-ticker-item active';
+        } else if (idx === prevIdx) {
+          item.className = 'agy-ticker-item leave-up';
+        } else {
+          item.className = 'agy-ticker-item enter-down';
+        }
+      });
     }, 2200);
   }
 
   function updateCapsuleDisplay() {
-    let min5hRemaining = null;
+    let g5hRemaining = null;
+    let p35hRemaining = null;
     let minCountdown = null;
 
     if (RAW_QUOTA && RAW_QUOTA.groups) {
       for (const g of RAW_QUOTA.groups) {
+        const gName = String(g.displayName || '').toLowerCase();
         for (const b of (g.buckets || [])) {
           const v = num(b.remainingFraction);
           const bId = String(b.bucketId || '').toLowerCase();
           const dName = String(b.displayName || '').toLowerCase();
-          const is5h = bId === 'gemini-5h' || bId.includes('5h') || dName.includes('five hour') || b.window === '5h';
+          const is5h = bId.includes('5h') || dName.includes('five hour') || b.window === '5h';
           if (is5h) {
-            // 严谨锁定实际产生消耗的 5h 剩余配额，杜绝被未使用的 3p-5h (100%) 错误覆盖
-            if (min5hRemaining === null || v < min5hRemaining) {
-              min5hRemaining = v;
+            if (bId.includes('gemini') || gName.includes('gemini')) {
+              g5hRemaining = v;
+            } else if (bId.includes('3p') || gName.includes('claude') || gName.includes('gpt')) {
+              p35hRemaining = v;
             }
           }
           if (b.resetTime) {
@@ -1249,22 +1124,31 @@
         }
       }
     }
-    if (min5hRemaining === null) min5hRemaining = 1;
+    if (g5hRemaining === null) g5hRemaining = 1;
+    if (p35hRemaining === null) p35hRemaining = 1;
 
-    // 1. 视图一：5h 剩余比例与对应真实剩余 Token (例如 2.2% -> ~2.3M, 6.6% -> ~7.3M)
-    const proj5h = calcQuotaProjection(min5hRemaining, 'gemini-5h');
-    const el5hPct = capsuleRoot.querySelector('#agy-pill-5h');
-    if (el5hPct) {
-      el5hPct.textContent = pct(min5hRemaining);
-      el5hPct.style.color = remainingColor(min5hRemaining);
+    // 1. 视图一：Gemini 5h 剩余比例与对应真实剩余 Token
+    const projG = calcQuotaProjection(g5hRemaining, 'gemini-5h');
+    const elG5h = capsuleRoot.querySelector('#agy-pill-g5h');
+    if (elG5h) {
+      elG5h.textContent = pct(g5hRemaining);
+      elG5h.style.color = remainingColor(g5hRemaining);
     }
-    const el5hTok = capsuleRoot.querySelector('#agy-pill-5h-tokens');
-    if (el5hTok) {
-      el5hTok.textContent = `~${proj5h.remTokStr}`;
-    }
+    const elG5hTok = capsuleRoot.querySelector('#agy-pill-g5h-tokens');
+    if (elG5hTok) elG5hTok.textContent = `~${projG.remTokStr}`;
 
-    // 2. 视图二：今日总用量与缓存命中率 (例如 今日: 1.06亿 · 85.6%命中)
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // 2. 视图二：Claude/GPT 5h 剩余比例与对应真实剩余 Token
+    const proj3p = calcQuotaProjection(p35hRemaining, '3p-5h');
+    const el3p5h = capsuleRoot.querySelector('#agy-pill-3p5h');
+    if (el3p5h) {
+      el3p5h.textContent = pct(p35hRemaining);
+      el3p5h.style.color = remainingColor(p35hRemaining);
+    }
+    const el3p5hTok = capsuleRoot.querySelector('#agy-pill-3p5h-tokens');
+    if (el3p5hTok) el3p5hTok.textContent = `~${proj3p.remTokStr}`;
+
+    // 3. 视图三：今日总用量与缓存命中率
+    const todayStr = dayKeyOf(new Date());
     const todayItem = RAW_DAILY.find(d => d.date === todayStr);
     let todayTotalTok = 0;
     let todayHitRate = 0;
@@ -1287,7 +1171,7 @@
       elTodayHit.textContent = `${todayHitRate.toFixed(1)}%命中`;
     }
 
-    // 3. 倒计时
+    // 4. 倒计时
     const elCountdown = capsuleRoot.querySelector('#agy-pill-countdown');
     if (elCountdown) {
       elCountdown.textContent = minCountdown !== null ? `⏳ ${fmtCountdown(minCountdown)}` : '⏳ 活跃';
@@ -1495,7 +1379,7 @@
 
     const cells = [];
     for (let d = new Date(start.getTime()); d.getTime() <= today.getTime(); d.setDate(d.getDate() + 1)) {
-      const key = d.toISOString().slice(0, 10);
+      const key = dayKeyOf(d);
       cells.push({
         date: key,
         ms: d.getTime(),
@@ -1546,7 +1430,7 @@
       if (val > max) max = val;
     });
 
-    const todayStr = today.toISOString().slice(0, 10);
+    const todayStr = dayKeyOf(today);
     const weekdaysZh = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
     // 3. 填充格子
@@ -1767,14 +1651,6 @@
         renderHeatmap();
         renderSummaryTab();
         renderConversationsTab();
-      }
-    } catch (e) {}
-
-    // 获取全量历史采样用于 KPI 消耗计算
-    try {
-      const hRes = await fetch('http://127.0.0.1:19388/api/history?range=all', { signal: AbortSignal.timeout(2000) });
-      if (hRes.ok) {
-        RAW_HISTORY_KPI = await hRes.json();
       }
     } catch (e) {}
 
