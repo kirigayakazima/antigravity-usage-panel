@@ -1455,7 +1455,7 @@
       `近 ${days} 天 · 峰值: ${fmtNum(max)} ${metric === 'sessions' ? '个会话' : (metric === 'steps' ? '步' : 'Token')}`;
   }
 
-  // 逐日汇总表格渲染器 (TabSummary)
+  // 逐日汇总表格渲染器 (TabSummary - 响应 SELECTED_DAYS 过滤)
   function renderSummaryTab() {
     const tbody = modalOverlay.querySelector('#summary-table-body');
     if (!tbody) return;
@@ -1464,7 +1464,18 @@
       return;
     }
 
-    tbody.innerHTML = RAW_DAILY.slice().reverse().map(d => {
+    const cutoff = rangeCutoff(SELECTED_DAYS);
+    let filteredDaily = RAW_DAILY;
+    if (cutoff) {
+      filteredDaily = RAW_DAILY.filter(d => String(d.date) >= cutoff);
+    }
+
+    if (filteredDaily.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--au-text-muted)">当前时间范围内无日历记录</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = filteredDaily.slice().reverse().map(d => {
       const t = d.tokens || {};
       const totalIn = num(t.input) + num(t.cacheRead);
       const hit = totalIn > 0 ? ((num(t.cacheRead) / totalIn) * 100).toFixed(1) + '%' : '—';
@@ -1537,31 +1548,81 @@
     }).join('');
   }
 
-  // 会话 Tab 与模型列表渲染器 (TabConversations)
+  /** 获取受当前顶部时间范围过滤的会话集合 */
+  function getRangeFilteredConversations() {
+    const cutoff = rangeCutoff(SELECTED_DAYS);
+    if (!cutoff) return RAW_CONVERSATIONS;
+    return RAW_CONVERSATIONS.filter(c => {
+      const cDate = dayKeyOf(c.lastModified || c.lastInput);
+      return cDate >= cutoff;
+    });
+  }
+
+  // 会话 Tab 与模型列表渲染器 (TabConversations - 全局响应 SELECTED_DAYS)
   function renderConversationsTab() {
+    const rangeConvs = getRangeFilteredConversations();
+
+    // 1. 动态按时间范围重新汇总各模型用量
+    const modelStatsMap = new Map();
+    for (const c of rangeConvs) {
+      const counts = c.modelCounts || {};
+      const mt = c.modelTokens || {};
+      for (const m of Object.keys(counts)) {
+        let x = modelStatsMap.get(m);
+        if (!x) {
+          x = { model: m, genCalls: 0, tokens: { input: 0, output: 0, cacheRead: 0, thinking: 0, response: 0 } };
+          modelStatsMap.set(m, x);
+        }
+        x.genCalls += counts[m] || 0;
+        const t = mt[m];
+        if (t) {
+          x.tokens.input += num(t.input);
+          x.tokens.output += num(t.output);
+          x.tokens.cacheRead += num(t.cacheRead);
+          x.tokens.thinking += num(t.thinking);
+          x.tokens.response += num(t.response);
+        }
+      }
+    }
+    const filteredModels = Array.from(modelStatsMap.values()).sort((a, b) => b.genCalls - a.genCalls);
+
     const modelsTbody = modalOverlay.querySelector('#conv-models-tbody');
     if (modelsTbody) {
-      modelsTbody.innerHTML = RAW_MODELS.map(m => {
-        const t = m.tokens || {};
-        const totalIn = num(t.input) + num(t.cacheRead);
-        const hit = totalIn > 0 ? ((num(t.cacheRead) / totalIn) * 100).toFixed(1) + '%' : '—';
-        return `
-          <tr>
-            <td style="font-weight: 600">${m.model}</td>
-            <td class="au-num">${m.genCalls || 0}</td>
-            <td class="au-num" title="${fmtFull(t.input)}">${fmtNum(t.input)}</td>
-            <td class="au-num" style="color:var(--au-purple)" title="${fmtFull(t.output)}">${fmtNum(t.output)}</td>
-            <td class="au-num" style="color:var(--au-brand)" title="${fmtFull(t.cacheRead)}">${fmtNum(t.cacheRead)}</td>
-            <td class="au-num" style="color:var(--au-emerald); font-weight:700">${hit}</td>
-          </tr>
-        `;
-      }).join('');
+      if (filteredModels.length === 0) {
+        modelsTbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--au-text-muted)">当前时间范围内无模型调用记录</td></tr>';
+      } else {
+        modelsTbody.innerHTML = filteredModels.map(m => {
+          const t = m.tokens || {};
+          const totalIn = num(t.input) + num(t.cacheRead);
+          const hit = totalIn > 0 ? ((num(t.cacheRead) / totalIn) * 100).toFixed(1) + '%' : '—';
+          return `
+            <tr>
+              <td style="font-weight: 600">${m.model}</td>
+              <td class="au-num">${m.genCalls || 0}</td>
+              <td class="au-num" title="${fmtFull(t.input)}">${fmtNum(t.input)}</td>
+              <td class="au-num" style="color:var(--au-purple)" title="${fmtFull(t.output)}">${fmtNum(t.output)}</td>
+              <td class="au-num" style="color:var(--au-brand)" title="${fmtFull(t.cacheRead)}">${fmtNum(t.cacheRead)}</td>
+              <td class="au-num" style="color:var(--au-emerald); font-weight:700">${hit}</td>
+            </tr>
+          `;
+        }).join('');
+      }
     }
+
+    // 2. 动态按时间范围计算活跃工作区筛选胶囊
+    const wsMap = new Map();
+    for (const c of rangeConvs) {
+      const list = (c.workspaces && c.workspaces.length > 0) ? c.workspaces : ['(未知)'];
+      for (const w of list) {
+        wsMap.set(w, (wsMap.get(w) || 0) + 1);
+      }
+    }
+    const filteredWorkspaces = Array.from(wsMap.entries()).map(([workspace, sessions]) => ({ workspace, sessions }));
 
     const wsContainer = modalOverlay.querySelector('#conv-workspaces-pills');
     if (wsContainer) {
       wsContainer.innerHTML = '';
-      RAW_WORKSPACES.forEach(w => {
+      filteredWorkspaces.forEach(w => {
         const btn = document.createElement('button');
         btn.className = 'au-btn' + (SELECTED_WS_FILTER === w.workspace ? ' on' : '');
         btn.textContent = `${shortWs(w.workspace)} (${w.sessions})`;
@@ -1573,10 +1634,10 @@
       });
     }
 
-    updateConversationsList();
+    updateConversationsList(rangeConvs);
   }
 
-  function updateConversationsList() {
+  function updateConversationsList(rangeConvs = getRangeFilteredConversations()) {
     const q = SEARCH_QUERY.toLowerCase();
     const ws = SELECTED_WS_FILTER;
 
@@ -1591,14 +1652,14 @@
       }
     }
 
-    const filtered = RAW_CONVERSATIONS.filter(c => {
+    const filtered = rangeConvs.filter(c => {
       if (ws && !(c.workspaces || []).includes(ws)) return false;
       if (!q) return true;
       const hay = `${c.title || ''} ${c.preview || ''} ${(c.workspaces || []).join(' ')} ${(c.models || []).join(' ')}`.toLowerCase();
       return hay.includes(q);
     });
 
-    modalOverlay.querySelector('#conv-count-info').textContent = `${filtered.length} / ${RAW_CONVERSATIONS.length} 个会话`;
+    modalOverlay.querySelector('#conv-count-info').textContent = `${filtered.length} / ${rangeConvs.length} 个会话`;
 
     const listTbody = modalOverlay.querySelector('#conv-list-tbody');
     if (!listTbody) return;
@@ -1702,13 +1763,15 @@
     });
   });
 
-  // KPI 时间范围切换
+  // KPI 时间范围切换 (全局联动各 Tab 视图过滤)
   modalOverlay.querySelectorAll('#kpi-range-group .au-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       modalOverlay.querySelectorAll('#kpi-range-group .au-btn').forEach(b => b.classList.remove('on'));
       btn.classList.add('on');
       SELECTED_DAYS = Number(btn.getAttribute('data-days'));
       updateKPIs();
+      renderConversationsTab();
+      renderSummaryTab();
     });
   });
 
