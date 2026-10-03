@@ -101,7 +101,7 @@
     .agy-ticker-viewport {
       position: relative !important;
       height: 28px !important;
-      min-width: 140px !important;
+      min-width: 220px !important;
       display: inline-flex !important;
       align-items: center !important;
       overflow: hidden !important;
