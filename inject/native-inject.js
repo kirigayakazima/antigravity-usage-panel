@@ -547,7 +547,7 @@
 
         <div class="au-kpis">
           <div class="au-kpi">
-            <div class="au-kpi-label">总消耗 Token</div>
+            <div class="au-kpi-label" id="kpi-tokens-label">总消耗 Token</div>
             <div class="au-kpi-value" id="kpi-tokens" style="color: var(--au-brand)">--</div>
             <div class="au-stack">
               <i id="kpi-bar-in" style="background: var(--au-brand); width: 0%" title="未命中输入"></i>
@@ -802,6 +802,7 @@
   let RAW_MODELS = [];
   let RAW_WORKSPACES = [];
   let RAW_HISTORY = null;
+  let RAW_HISTORY_KPI = null;  // 用于 KPI 消耗计算的全量历史采样 (range=all)
 
   let SELECTED_DAYS = 0;
   let SELECTED_HEAT_METRIC = 'sessions';
@@ -915,7 +916,83 @@
   }
 
   // 7. 渲染函数集合
+
+  /** 从历史采样点计算指定时间范围内的真实额度消耗（分数累加）。
+   *  只累加「下降」段（真实消耗），忽略上升段（重置/恢复）。
+   *  返回 { totalConsumedFraction, bucketDetails: [{id, consumed, cap, tokens}] }
+   */
+  function calcHistoryConsumption(days) {
+    if (!RAW_HISTORY_KPI || !Array.isArray(RAW_HISTORY_KPI.buckets)) return null;
+
+    const buckets = RAW_HISTORY_KPI.buckets;
+    if (buckets.length === 0) return null;
+
+    // 根据 days 选择正确的消耗字段
+    let totalTokens = 0;
+    const details = [];
+
+    for (const bk of buckets) {
+      let consumedFrac = 0;
+      if (days === 1) {
+        consumedFrac = num(bk.consumedToday);
+      } else if (days <= 7) {
+        consumedFrac = num(bk.consumed7d);
+      } else if (days <= 14) {
+        consumedFrac = Math.min(num(bk.consumed), num(bk.consumed7d) * 2.2); // 近似 14d
+      } else if (days <= 30) {
+        consumedFrac = num(bk.consumed); // consumed 是全量，30d 用全量近似
+      } else if (days <= 90) {
+        consumedFrac = num(bk.consumed);
+      } else {
+        consumedFrac = num(bk.consumed);
+      }
+
+      // 用 calcQuotaProjection 的逻辑反推该桶的窗口容量 cap
+      const bId = String(bk.id || '').toLowerCase();
+      const isWeekly = bId.includes('weekly');
+      let cap = isWeekly ? 623e6 : 104e6;
+
+      // 尝试用实际数据反推 cap (与 calcQuotaProjection 类似)
+      if (RAW_QUOTA && RAW_QUOTA.groups) {
+        for (const g of RAW_QUOTA.groups) {
+          for (const b of (g.buckets || [])) {
+            const bid = String(b.bucketId || '').toLowerCase();
+            if (bid === bId) {
+              const remaining = num(b.remainingFraction);
+              const used = 1 - remaining;
+              const todayStr = new Date().toISOString().slice(0, 10);
+              const todayItem = RAW_DAILY.find(d => d.date === todayStr);
+              if (isWeekly) {
+                const cutoff7d = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+                let tokens7d = 0;
+                for (const d of RAW_DAILY) {
+                  if (d.date >= cutoff7d && d.tokens) tokens7d += num(d.tokens.input) + num(d.tokens.output) + num(d.tokens.cacheRead);
+                }
+                if (used >= 0.005 && tokens7d > 0) cap = tokens7d / used;
+              } else {
+                let todayTok = 0;
+                if (todayItem && todayItem.tokens) {
+                  const t = todayItem.tokens;
+                  todayTok = num(t.input) + num(t.output) + num(t.cacheRead);
+                }
+                if (used >= 0.005 && todayTok > 0) cap = todayTok / used;
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      const tokens = consumedFrac * cap;
+      totalTokens += tokens;
+      details.push({ id: bk.id, consumed: consumedFrac, cap, tokens });
+    }
+
+    return { totalTokens, details };
+  }
+
   function updateKPIs() {
+    // --- 会话聚合数据（用于非 Token 统计：会话数、步数、调用数、活跃天数）---
     const cutoffMs = SELECTED_DAYS === 0 ? 0 : Date.now() - SELECTED_DAYS * 86400000;
     const cutoffDate = SELECTED_DAYS === 0 ? '' : new Date(cutoffMs).toISOString().slice(0, 10);
 
@@ -924,23 +1001,72 @@
       filtered = RAW_DAILY.filter(d => d.date >= cutoffDate);
     }
 
-    let input = 0, output = 0, cacheRead = 0;
     let sessions = 0, steps = 0, calls = 0;
-
     for (const d of filtered) {
       sessions += num(d.sessions);
       steps += num(d.steps);
       calls += num(d.genCalls);
-      if (d.tokens) {
-        input += num(d.tokens.input);
-        output += num(d.tokens.output);
-        cacheRead += num(d.tokens.cacheRead);
-      }
     }
 
-    const totalIn = input + cacheRead;
-    const totalAll = totalIn + output;
-    const hitRate = totalIn > 0 ? (cacheRead / totalIn) : 0;
+    // --- Token 消耗：混合数据源 ---
+    const kpiLabel = modalOverlay.querySelector('#kpi-tokens-label');
+    const kpiHint = modalOverlay.querySelector('#kpi-range-hint');
+    let totalAll = 0;
+    let input = 0, output = 0, cacheRead = 0;
+    let hitRate = 0;
+    let isFromHistory = false;
+
+    if (SELECTED_DAYS === 0) {
+      // 「全部」→ 用会话聚合总量（跨所有历史）
+      for (const d of filtered) {
+        if (d.tokens) {
+          input += num(d.tokens.input);
+          output += num(d.tokens.output);
+          cacheRead += num(d.tokens.cacheRead);
+        }
+      }
+      const totalIn = input + cacheRead;
+      totalAll = totalIn + output;
+      hitRate = totalIn > 0 ? (cacheRead / totalIn) : 0;
+
+      if (kpiLabel) kpiLabel.textContent = '历史总消耗 Token';
+      if (kpiHint) kpiHint.textContent = '统计自反重力离线会话库';
+    } else {
+      // 「今天/7天/14天/...」→ 用 history.jsonl 差值算真实消耗
+      const histResult = calcHistoryConsumption(SELECTED_DAYS);
+      if (histResult && histResult.totalTokens > 0) {
+        totalAll = histResult.totalTokens;
+        isFromHistory = true;
+
+        // 会话聚合的命中率仍然有参考价值
+        for (const d of filtered) {
+          if (d.tokens) {
+            input += num(d.tokens.input);
+            output += num(d.tokens.output);
+            cacheRead += num(d.tokens.cacheRead);
+          }
+        }
+        const totalIn = input + cacheRead;
+        hitRate = totalIn > 0 ? (cacheRead / totalIn) : 0;
+      } else {
+        // history 数据不足，fallback 到会话聚合
+        for (const d of filtered) {
+          if (d.tokens) {
+            input += num(d.tokens.input);
+            output += num(d.tokens.output);
+            cacheRead += num(d.tokens.cacheRead);
+          }
+        }
+        const totalIn = input + cacheRead;
+        totalAll = totalIn + output;
+        hitRate = totalIn > 0 ? (cacheRead / totalIn) : 0;
+      }
+
+      const rangeNames = { 1: '今日', 7: '近 7 日', 14: '近 14 日', 30: '近 30 日', 90: '近 90 日' };
+      const rangeName = rangeNames[SELECTED_DAYS] || `近 ${SELECTED_DAYS} 日`;
+      if (kpiLabel) kpiLabel.textContent = `${rangeName}消耗 Token`;
+      if (kpiHint) kpiHint.textContent = isFromHistory ? '来自实时额度采样反推' : '统计自反重力离线会话库 (采样不足时降级)';
+    }
 
     modalOverlay.querySelector('#kpi-tokens').textContent = fmtNum(totalAll);
     modalOverlay.querySelector('#kpi-tokens-sub').textContent =
@@ -1638,12 +1764,21 @@
         RAW_MODELS = cData.byModel || [];
         RAW_WORKSPACES = cData.byWorkspace || [];
 
-        updateKPIs();
         renderHeatmap();
         renderSummaryTab();
         renderConversationsTab();
       }
     } catch (e) {}
+
+    // 获取全量历史采样用于 KPI 消耗计算
+    try {
+      const hRes = await fetch('http://127.0.0.1:19388/api/history?range=all', { signal: AbortSignal.timeout(2000) });
+      if (hRes.ok) {
+        RAW_HISTORY_KPI = await hRes.json();
+      }
+    } catch (e) {}
+
+    updateKPIs();
   }
 
   // 9. 交互事件绑定

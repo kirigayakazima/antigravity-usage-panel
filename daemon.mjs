@@ -192,7 +192,7 @@ async function getConversations() {
 
   try {
     const dataDir = mkdtempSync(join(tmpdir(), 'au-conv-'));
-    const result = await scanConversations({ dataDir });
+    const result = await scanConversations({ dataDir, maxConversationScan: Infinity });
     lastConvData = {
       timestamp: now,
       ...result
