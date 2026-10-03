@@ -1017,7 +1017,7 @@
             resetTimeStr = fmtCountdown(diffMs);
             if (minCountdown === null || diffMs < minCountdown) minCountdown = diffMs;
           } else {
-            resetTimeStr = fmtTime(rDate.getTime());
+            resetTimeStr = v === 0 ? '已到期 (同步中...)' : '已恢复';
           }
         }
 
