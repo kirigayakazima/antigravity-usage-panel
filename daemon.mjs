@@ -17,6 +17,10 @@ process.on('unhandledRejection', (err) => {
   } catch (e) {}
 });
 
+import { execSync } from 'node:child_process';
+
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const PORT = 19388;
 const home = homedir();
 const historyDir = join(home, '.dsh', 'antigravity-usage');
@@ -36,15 +40,79 @@ const logDirs = [
 
 let cachedPort = null;
 let cachedCsrf = null;
+let cachedProto = 'http';
 let lastQuotaData = null;
 let lastQuotaTime = 0;
 let lastConvData = null;
 let lastConvTime = 0;
 
-function findLanguageServerPort() {
-  const PORT_RE = /listening on random port at (\d+) for HTTP(?!S)/;
-  let candidates = [];
+async function testLsConnection(port, knownCsrf = null) {
+  for (const proto of ['https', 'http']) {
+    try {
+      let csrf = knownCsrf;
+      if (!csrf) {
+        try {
+          const r = await fetch(`${proto}://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(1000) });
+          const t = await r.text();
+          const m = t.match(/csrfToken":"([^"]+)"/);
+          if (m) csrf = m[1];
+        } catch (e) {}
+      }
 
+      if (csrf) {
+        const qRes = await fetch(`${proto}://127.0.0.1:${port}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-codeium-csrf-token': csrf },
+          body: '{}',
+          signal: AbortSignal.timeout(1500)
+        });
+        if (qRes.ok) {
+          const data = await qRes.json();
+          if (data.response?.groups || data.groups) {
+            return { port, csrf, protocol: proto };
+          }
+        }
+      }
+    } catch (e) {}
+  }
+  return null;
+}
+
+async function discoverLanguageServer() {
+  // 1. Windows: wmic + netstat (超快，几十毫秒即可秒级发现最新 HTTPS/HTTP 端口与 Token)
+  if (process.platform === 'win32') {
+    try {
+      const wmicOut = execSync('wmic process where "name=\'language_server.exe\'" get ProcessId,CommandLine /format:list', {
+        encoding: 'utf8',
+        timeout: 2000,
+        windowsHide: true
+      });
+      const pidMatch = wmicOut.match(/ProcessId=(\d+)/i);
+      const cmdMatch = wmicOut.match(/CommandLine=(.+)/i);
+      if (pidMatch && cmdMatch) {
+        const pid = pidMatch[1];
+        const cmd = cmdMatch[1];
+        const csrfMatch = cmd.match(/--csrf_token\s+([a-f0-9\-]+)/i);
+        const csrf = csrfMatch ? csrfMatch[1] : null;
+
+        const netOut = execSync('netstat -ano -p tcp', {
+          encoding: 'utf8',
+          timeout: 2000,
+          windowsHide: true
+        });
+        const portMatches = [...netOut.matchAll(new RegExp(`127\\.0\\.0\\.1:(\\d+)\\s+.*LISTENING\\s+${pid}`, 'gi'))];
+        const ports = portMatches.map(m => Number(m[1]));
+
+        for (const port of ports) {
+          const ok = await testLsConnection(port, csrf);
+          if (ok) return ok;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. 兜底扫描日志文件
+  const candidates = [];
   for (const dir of logDirs) {
     try {
       const files = readdirSync(dir).filter(f => f.endsWith('.log'));
@@ -60,28 +128,20 @@ function findLanguageServerPort() {
 
   candidates.sort((a, b) => b.mtime - a.mtime);
 
+  const PORT_RE = /listening on random port at (\d+) for HTTP/g;
   for (const item of candidates) {
     try {
       const content = readFileSync(item.full, 'utf8');
-      const matches = [...content.matchAll(new RegExp(PORT_RE, 'g'))];
-      if (matches.length > 0) {
-        const lastMatch = matches[matches.length - 1];
-        return Number(lastMatch[1]);
+      const matches = [...content.matchAll(PORT_RE)];
+      for (let i = matches.length - 1; i >= 0; i--) {
+        const port = Number(matches[i][1]);
+        const ok = await testLsConnection(port);
+        if (ok) return ok;
       }
     } catch (e) {}
   }
-  return null;
-}
 
-async function getCsrfToken(port) {
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(1500) });
-    const html = await res.text();
-    const match = html.match(/csrfToken":"([^"]+)"/);
-    return match ? match[1] : null;
-  } catch (e) {
-    return null;
-  }
+  return null;
 }
 
 async function getQuota() {
@@ -90,48 +150,44 @@ async function getQuota() {
     return lastQuotaData;
   }
 
-  let port = cachedPort;
-  let csrf = cachedCsrf;
-
-  if (!port || !csrf) {
-    port = findLanguageServerPort();
-    if (port) {
-      csrf = await getCsrfToken(port);
-      if (csrf) {
-        cachedPort = port;
-        cachedCsrf = csrf;
-      }
+  if (!cachedPort || !cachedCsrf) {
+    const ls = await discoverLanguageServer();
+    if (ls) {
+      cachedPort = ls.port;
+      cachedCsrf = ls.csrf;
+      cachedProto = ls.protocol || 'http';
     }
   }
 
-  if (!port || !csrf) {
+  if (!cachedPort || !cachedCsrf) {
     if (lastQuotaData) return lastQuotaData;
     throw new Error('Language server not detected or offline');
   }
 
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`, {
+    const res = await fetch(`${cachedProto}://127.0.0.1:${cachedPort}/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        'x-codeium-csrf-token': csrf
+        'x-codeium-csrf-token': cachedCsrf
       },
       body: '{}',
       signal: AbortSignal.timeout(2000)
     });
 
     if (!res.ok) {
+      cachedPort = null;
       cachedCsrf = null;
       throw new Error(`HTTP ${res.status}`);
     }
 
     let userStatus = null;
     try {
-      const uRes = await fetch(`http://127.0.0.1:${port}/exa.language_server_pb.LanguageServerService/GetUserStatus`, {
+      const uRes = await fetch(`${cachedProto}://127.0.0.1:${cachedPort}/exa.language_server_pb.LanguageServerService/GetUserStatus`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-codeium-csrf-token': csrf
+          'x-codeium-csrf-token': cachedCsrf
         },
         body: '{}',
         signal: AbortSignal.timeout(1500)
@@ -146,7 +202,8 @@ async function getQuota() {
 
     const data = await res.json();
     lastQuotaData = {
-      port,
+      port: cachedPort,
+      protocol: cachedProto,
       timestamp: now,
       raw: data,
       account: {
@@ -164,7 +221,7 @@ async function getQuota() {
       historyStore.append({
         ok: true,
         ts: now,
-        port,
+        port: cachedPort,
         groups: (data.groups || data.response?.groups || []).map(g => ({
           name: g.displayName || '',
           buckets: (g.buckets || []).map(b => ({
