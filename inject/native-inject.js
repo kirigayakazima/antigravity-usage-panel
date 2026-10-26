@@ -873,12 +873,64 @@
     return 'var(--au-red)';
   };
 
+  /** 获取对应模型类别（Gemini vs 3P/Claude）在指定窗口（5小时当天 vs 最近7天）内的真实消耗 Token 数 */
+  function getModelTokensInWindow(is3P, isWeekly) {
+    const todayStr = dayKeyOf(new Date());
+    const cutoffStr = isWeekly ? dayKeyOf(new Date(Date.now() - 7 * 86400000)) : todayStr;
+
+    let total = 0;
+    for (const c of RAW_CONVERSATIONS) {
+      const dmt = c.dailyModelTokens || {};
+      for (const [day, models] of Object.entries(dmt)) {
+        if (day >= cutoffStr) {
+          for (const [model, t] of Object.entries(models)) {
+            const m = String(model).toLowerCase();
+            const match3P = m.includes('claude') || m.includes('gpt');
+            if (is3P ? match3P : !match3P) {
+              total += num(t.input) + num(t.output) + num(t.cacheRead);
+            }
+          }
+        }
+      }
+    }
+    // 如果会话中没有 dailyModelTokens 分类，回退到 RAW_DAILY 总量
+    if (total === 0 && !is3P) {
+      if (isWeekly) {
+        for (const d of RAW_DAILY) {
+          if (String(d.date) >= cutoffStr && d.tokens) {
+            total += num(d.tokens.input) + num(d.tokens.output) + num(d.tokens.cacheRead);
+          }
+        }
+      } else {
+        const todayItem = RAW_DAILY.find(d => d.date === todayStr);
+        if (todayItem && todayItem.tokens) {
+          total = num(todayItem.tokens.input) + num(todayItem.tokens.output) + num(todayItem.tokens.cacheRead);
+        }
+      }
+    }
+    return total;
+  }
+
+  /** 动态 Token 预算反推计算器：根据当前真实消耗与配额下降比例精准反推剩余可用 Token */
   function calcQuotaProjection(remainingFraction, bucketId) {
     const remaining = Math.max(0, Math.min(1, num(remainingFraction)));
+    const used = 1 - remaining;
     const bId = String(bucketId || '').toLowerCase();
     const isWeekly = bId.includes('weekly');
-    const cap = isWeekly ? 623e6 : 104e6;
-    const remainingTokens = cap * remaining;
+    const is3P = bId.includes('3p') || bId.includes('claude') || bId.includes('gpt');
+
+    // 默认基准容量 (Gemini 5h 约 300M, Weekly 约 2000M; 3P/Claude 5h 约 2M, Weekly 约 5M)
+    let baselineCap = is3P ? (isWeekly ? 5e6 : 2e6) : (isWeekly ? 2000e6 : 300e6);
+    let cap = baselineCap;
+
+    const usedTokens = getModelTokensInWindow(is3P, isWeekly);
+
+    // 动态 Token 预算反推：已消耗 >= 0.5% 且有真实 Token 消耗记录时，按实际消耗反推满额容量
+    if (used >= 0.005 && usedTokens > 0) {
+      cap = usedTokens / used;
+    }
+
+    const remainingTokens = remaining <= 0 ? 0 : cap * remaining;
 
     return {
       remPct: pct(remaining),
@@ -1004,7 +1056,7 @@
           minRemaining = v;
         }
 
-        const proj = calcQuotaProjection(v, b.bucketId || b.displayName);
+        const proj = calcQuotaProjection(v, (b.bucketId || '') + ' ' + (g.displayName || '') + ' ' + (b.displayName || ''));
         const bEl = document.createElement('div');
         bEl.className = 'au-bucket';
         const color = remainingColor(v);
@@ -1503,7 +1555,7 @@
     if (RAW_QUOTA && Array.isArray(RAW_QUOTA.groups)) {
       for (const g of RAW_QUOTA.groups) {
         for (const b of (g.buckets || [])) {
-          buckets.push(b);
+          buckets.push({ ...b, groupName: g.displayName });
         }
       }
     }
@@ -1532,7 +1584,7 @@
       }
 
       const windowType = b.windowType || (b.bucketId?.includes('weekly') ? '周周期重置' : '5小时滑动窗口');
-      const proj = calcQuotaProjection(v, b.bucketId || b.displayName);
+      const proj = calcQuotaProjection(v, (b.bucketId || '') + ' ' + (b.groupName || '') + ' ' + (b.displayName || ''));
 
       return `
         <tr>
