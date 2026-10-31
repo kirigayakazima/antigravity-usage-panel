@@ -919,15 +919,47 @@
     const isWeekly = bId.includes('weekly');
     const is3P = bId.includes('3p') || bId.includes('claude') || bId.includes('gpt');
 
-    // 默认基准容量 (Gemini 5h 约 300M, Weekly 约 2000M; 3P/Claude 5h 约 2M, Weekly 约 5M)
-    let baselineCap = is3P ? (isWeekly ? 5e6 : 2e6) : (isWeekly ? 2000e6 : 300e6);
+    // 基准满额容量设定 (根据 Pro 账号标准额度)
+    // Gemini: 5h 约 250M~300M, Weekly 约 900M~1000M
+    // 3P (Claude/GPT): 5h 约 2M, Weekly 约 4.5M~5M
+    const baselineCap = is3P ? (isWeekly ? 4.6e6 : 2e6) : (isWeekly ? 900e6 : 260e6);
     let cap = baselineCap;
 
-    const usedTokens = getModelTokensInWindow(is3P, isWeekly);
+    const weeklyTokens = getModelTokensInWindow(is3P, true);
 
-    // 动态 Token 预算反推：已消耗 >= 0.5% 且有真实 Token 消耗记录时，按实际消耗反推满额容量
-    if (used >= 0.005 && usedTokens > 0) {
-      cap = usedTokens / used;
+    if (isWeekly) {
+      // 周配额桶：如果已使用 >= 0.5% 且过去 7 天有真实消耗，则以 (过去7天实际消耗 / 已用比例) 精准反推真实周满额容量
+      if (used >= 0.005 && weeklyTokens > 0) {
+        cap = weeklyTokens / used;
+      }
+    } else {
+      // 5小时滑动配额桶：
+      // 注意：今天 (0:00-24:00) 的全天累计用量绝不能直接当作单个 5 小时窗口的已用量！
+      // 否则一整天消耗数亿 Token 后在 5h 刚重置 (如已用 6%) 时相除，会算出数十亿 (3B~4B) 的虚假容量。
+      // 真实 5 小时满额容量大约为周满额容量的 ~28% (Gemini 周满额约 900M -> 5h 满额约 250M)
+      let inferredWeeklyCap = baselineCap / (is3P ? (2 / 4.6) : (260 / 900));
+      if (weeklyTokens > 0) {
+        let weeklyUsed = 0;
+        if (RAW_QUOTA && Array.isArray(RAW_QUOTA.groups)) {
+          for (const g of RAW_QUOTA.groups) {
+            const gName = (g.displayName || '').toLowerCase();
+            const groupMatch3P = gName.includes('claude') || gName.includes('gpt');
+            if (is3P === groupMatch3P) {
+              for (const b of (g.buckets || [])) {
+                if (String(b.bucketId || '').toLowerCase().includes('weekly')) {
+                  weeklyUsed = 1 - Math.max(0, Math.min(1, num(b.remainingFraction)));
+                }
+              }
+            }
+          }
+        }
+        if (weeklyUsed >= 0.005) {
+          inferredWeeklyCap = weeklyTokens / weeklyUsed;
+        }
+      }
+
+      const ratio = is3P ? 0.43 : 0.28;
+      cap = inferredWeeklyCap * ratio;
     }
 
     const remainingTokens = remaining <= 0 ? 0 : cap * remaining;
