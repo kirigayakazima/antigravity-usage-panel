@@ -730,13 +730,14 @@
         <!-- 5. 重置 Tab -->
         <div id="tab-resets" class="au-tab-pane">
           <div class="au-card">
-            <div class="au-card-title">⏳ 额度桶重置监控</div>
+            <div class="au-card-title">⏳ 额度桶重置监控与满额总容量</div>
             <table class="au-table">
               <thead>
                 <tr>
                   <th>配额桶</th>
                   <th class="au-num">当前剩余</th>
                   <th class="au-num">预估剩余 Token</th>
+                  <th class="au-num">满额总额度</th>
                   <th class="au-num">已用比例</th>
                   <th class="au-num">重置倒计时</th>
                   <th class="au-num">预计重置时间</th>
@@ -744,7 +745,7 @@
                 </tr>
               </thead>
               <tbody id="resets-table-body">
-                <tr><td colspan="7" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在读取配额桶状态...</td></tr>
+                <tr><td colspan="8" style="text-align: center; padding: 20px; color: var(--au-text-muted)">正在读取配额桶状态...</td></tr>
               </tbody>
             </table>
           </div>
@@ -1110,13 +1111,15 @@
             <span class="au-bucket-label">${b.displayName || b.bucketId}</span>
             <div style="display: flex; align-items: baseline; gap: 6px;">
               <span class="au-bucket-pct" style="color: ${color}">${pct(v)}</span>
-              <span style="font-size: 11.5px; opacity: 0.8; font-weight: 600; color: var(--au-brand)">~${proj.remTokStr}</span>
+              <span style="font-size: 11.5px; opacity: 0.85; font-weight: 600; color: var(--au-brand)">~${proj.remTokStr}</span>
             </div>
           </div>
           <div class="au-bar">
             <div class="au-bar-fill" style="width: ${(v * 100).toFixed(2)}%; background: ${color}"></div>
           </div>
           <div class="au-kv">
+            <span class="au-k">总额度</span>
+            <span class="au-v" style="color: var(--au-brand)">≈ ${proj.capStr}</span>
             <span class="au-k">重置</span>
             <span class="au-v">${resetTimeStr}</span>
             <span class="au-k">已用</span>
@@ -1130,7 +1133,7 @@
         mEl.innerHTML = `
           <span class="au-dot" style="background: ${color}"></span>
           <span class="au-model-name" title="${b.displayName || b.bucketId}">${b.displayName || b.bucketId}</span>
-          <span class="au-v" style="color: ${color}">${pct(v, 0)} (~${proj.remTokStr})</span>
+          <span class="au-v" style="color: ${color}">${pct(v, 0)} (~${proj.remTokStr} / 总额度 ≈${proj.capStr})</span>
         `;
         modelsList.appendChild(mEl);
       }
@@ -1623,6 +1626,7 @@
           <td style="text-align: left; font-weight: 600;">${b.displayName || b.bucketId}</td>
           <td class="au-num" style="color: ${color}; font-weight: 700">${pct(v)}</td>
           <td class="au-num" style="color: var(--au-brand); font-weight: 700">~${proj.remTokStr}</td>
+          <td class="au-num" style="color: var(--au-brand); font-weight: 600">≈ ${proj.capStr}</td>
           <td class="au-num">${pct(used)}</td>
           <td class="au-num" style="color: var(--au-brand); font-weight: 600">${countdown}</td>
           <td class="au-num" style="color: var(--au-text-muted)">${rTimeStr}</td>
