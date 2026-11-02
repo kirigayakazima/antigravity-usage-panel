@@ -902,7 +902,7 @@
     return total;
   }
 
-  /** 动态 Token 预算反推计算器：严格按配额周期计算并实施物理安全边界，彻底杜绝虚假天文数字 */
+  /** 动态 Token 预算反推计算器：根据当前真实消耗与配额下降比例精准动态反推，并附带物理安全兜底 */
   function calcQuotaProjection(remainingFraction, bucketId, resetTime) {
     const remaining = Math.max(0, Math.min(1, num(remainingFraction)));
     const used = 1 - remaining;
@@ -910,16 +910,14 @@
     const isWeekly = bId.includes('weekly');
     const is3P = bId.includes('3p') || bId.includes('claude') || bId.includes('gpt');
 
-    // 官方合理的基准满额容量与物理安全上下界（严防产生数十亿/上百亿的虚假失真数字）
-    // Gemini: 5h 正常在 200M~350M, Weekly 正常在 700M~1200M
-    // 3P/Claude: 5h 正常在 1.5M~2.5M, Weekly 正常在 3.5M~6.0M
+    // 合理基准与物理安全边界（保障未消耗时有初始参考，且极端情况下不发生数值溢出）
     const cfg = is3P
-      ? (isWeekly ? { base: 4.6e6, min: 2.5e6, max: 8.0e6 } : { base: 2.0e6, min: 1.0e6, max: 3.5e6 })
-      : (isWeekly ? { base: 900e6, min: 500e6, max: 1500e6 } : { base: 260e6, min: 120e6, max: 450e6 });
+      ? (isWeekly ? { base: 4.6e6, min: 2.0e6, max: 10e6 } : { base: 2.0e6, min: 1.0e6, max: 5.0e6 })
+      : (isWeekly ? { base: 850e6, min: 400e6, max: 2000e6 } : { base: 250e6, min: 100e6, max: 600e6 });
 
     let cap = cfg.base;
 
-    // 严格根据本周期的实际起始时间统计该周期内的用量
+    // 严格根据本周期的实际起始时间统计该周期内的真实消耗
     if (resetTime) {
       const rMs = new Date(resetTime).getTime();
       const winMs = isWeekly ? 7 * 86400000 : 5 * 3600000;
@@ -929,16 +927,13 @@
       // 仅统计自本配额周期开始以来的真实 Token 消耗，绝不跨周期混入旧周期的历史用量！
       const cycleTokens = getModelTokensSince(is3P, startDay);
 
-      // 当已用比例达到 5% 以上且在当前周期内有统计消耗时，平滑融入实测反推
-      if (used >= 0.05 && cycleTokens > 0) {
-        const observedCap = cycleTokens / used;
-        // 在已用 5% ~ 20% 之间做权重平滑（避免周期刚开始微小波动导致容量跳跃）
-        const weight = Math.min(1, Math.max(0, (used - 0.05) / 0.15));
-        cap = (1 - weight) * cfg.base + weight * observedCap;
+      // 只要有真实消耗且已消耗比例 > 0.3%，完全按 (实际消耗 / 已用比例) 进行纯动态反推！
+      if (used >= 0.003 && cycleTokens > 0) {
+        cap = cycleTokens / used;
       }
     }
 
-    // 物理边界硬约束（保证无论用户用量高低，满额容量永远处于该账号类型的真实物理区间内）
+    // 物理安全兜底约束
     cap = Math.min(cfg.max, Math.max(cfg.min, cap));
 
     const remainingTokens = remaining <= 0 ? 0 : cap * remaining;
