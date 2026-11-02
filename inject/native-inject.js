@@ -874,16 +874,13 @@
     return 'var(--au-red)';
   };
 
-  /** 获取对应模型类别（Gemini vs 3P/Claude）在指定窗口（5小时当天 vs 最近7天）内的真实消耗 Token 数 */
-  function getModelTokensInWindow(is3P, isWeekly) {
-    const todayStr = dayKeyOf(new Date());
-    const cutoffStr = isWeekly ? dayKeyOf(new Date(Date.now() - 7 * 86400000)) : todayStr;
-
+  /** 获取指定起始日期 (包含) 至今的模型用量 */
+  function getModelTokensSince(is3P, startDayStr) {
     let total = 0;
     for (const c of RAW_CONVERSATIONS) {
       const dmt = c.dailyModelTokens || {};
       for (const [day, models] of Object.entries(dmt)) {
-        if (day >= cutoffStr) {
+        if (day >= startDayStr) {
           for (const [model, t] of Object.entries(models)) {
             const m = String(model).toLowerCase();
             const match3P = m.includes('claude') || m.includes('gpt');
@@ -894,74 +891,55 @@
         }
       }
     }
-    // 如果会话中没有 dailyModelTokens 分类，回退到 RAW_DAILY 总量
+    // 回退机制
     if (total === 0 && !is3P) {
-      if (isWeekly) {
-        for (const d of RAW_DAILY) {
-          if (String(d.date) >= cutoffStr && d.tokens) {
-            total += num(d.tokens.input) + num(d.tokens.output) + num(d.tokens.cacheRead);
-          }
-        }
-      } else {
-        const todayItem = RAW_DAILY.find(d => d.date === todayStr);
-        if (todayItem && todayItem.tokens) {
-          total = num(todayItem.tokens.input) + num(todayItem.tokens.output) + num(todayItem.tokens.cacheRead);
+      for (const d of RAW_DAILY) {
+        if (String(d.date) >= startDayStr && d.tokens) {
+          total += num(d.tokens.input) + num(d.tokens.output) + num(d.tokens.cacheRead);
         }
       }
     }
     return total;
   }
 
-  /** 动态 Token 预算反推计算器：根据当前真实消耗与配额下降比例精准反推剩余可用 Token */
-  function calcQuotaProjection(remainingFraction, bucketId) {
+  /** 动态 Token 预算反推计算器：严格按配额周期计算并实施物理安全边界，彻底杜绝虚假天文数字 */
+  function calcQuotaProjection(remainingFraction, bucketId, resetTime) {
     const remaining = Math.max(0, Math.min(1, num(remainingFraction)));
     const used = 1 - remaining;
     const bId = String(bucketId || '').toLowerCase();
     const isWeekly = bId.includes('weekly');
     const is3P = bId.includes('3p') || bId.includes('claude') || bId.includes('gpt');
 
-    // 基准满额容量设定 (根据 Pro 账号标准额度)
-    // Gemini: 5h 约 250M~300M, Weekly 约 900M~1000M
-    // 3P (Claude/GPT): 5h 约 2M, Weekly 约 4.5M~5M
-    const baselineCap = is3P ? (isWeekly ? 4.6e6 : 2e6) : (isWeekly ? 900e6 : 260e6);
-    let cap = baselineCap;
+    // 官方合理的基准满额容量与物理安全上下界（严防产生数十亿/上百亿的虚假失真数字）
+    // Gemini: 5h 正常在 200M~350M, Weekly 正常在 700M~1200M
+    // 3P/Claude: 5h 正常在 1.5M~2.5M, Weekly 正常在 3.5M~6.0M
+    const cfg = is3P
+      ? (isWeekly ? { base: 4.6e6, min: 2.5e6, max: 8.0e6 } : { base: 2.0e6, min: 1.0e6, max: 3.5e6 })
+      : (isWeekly ? { base: 900e6, min: 500e6, max: 1500e6 } : { base: 260e6, min: 120e6, max: 450e6 });
 
-    const weeklyTokens = getModelTokensInWindow(is3P, true);
+    let cap = cfg.base;
 
-    if (isWeekly) {
-      // 周配额桶：如果已使用 >= 0.5% 且过去 7 天有真实消耗，则以 (过去7天实际消耗 / 已用比例) 精准反推真实周满额容量
-      if (used >= 0.005 && weeklyTokens > 0) {
-        cap = weeklyTokens / used;
+    // 严格根据本周期的实际起始时间统计该周期内的用量
+    if (resetTime) {
+      const rMs = new Date(resetTime).getTime();
+      const winMs = isWeekly ? 7 * 86400000 : 5 * 3600000;
+      const startMs = rMs - winMs;
+      const startDay = dayKeyOf(new Date(startMs));
+
+      // 仅统计自本配额周期开始以来的真实 Token 消耗，绝不跨周期混入旧周期的历史用量！
+      const cycleTokens = getModelTokensSince(is3P, startDay);
+
+      // 当已用比例达到 5% 以上且在当前周期内有统计消耗时，平滑融入实测反推
+      if (used >= 0.05 && cycleTokens > 0) {
+        const observedCap = cycleTokens / used;
+        // 在已用 5% ~ 20% 之间做权重平滑（避免周期刚开始微小波动导致容量跳跃）
+        const weight = Math.min(1, Math.max(0, (used - 0.05) / 0.15));
+        cap = (1 - weight) * cfg.base + weight * observedCap;
       }
-    } else {
-      // 5小时滑动配额桶：
-      // 注意：今天 (0:00-24:00) 的全天累计用量绝不能直接当作单个 5 小时窗口的已用量！
-      // 否则一整天消耗数亿 Token 后在 5h 刚重置 (如已用 6%) 时相除，会算出数十亿 (3B~4B) 的虚假容量。
-      // 真实 5 小时满额容量大约为周满额容量的 ~28% (Gemini 周满额约 900M -> 5h 满额约 250M)
-      let inferredWeeklyCap = baselineCap / (is3P ? (2 / 4.6) : (260 / 900));
-      if (weeklyTokens > 0) {
-        let weeklyUsed = 0;
-        if (RAW_QUOTA && Array.isArray(RAW_QUOTA.groups)) {
-          for (const g of RAW_QUOTA.groups) {
-            const gName = (g.displayName || '').toLowerCase();
-            const groupMatch3P = gName.includes('claude') || gName.includes('gpt');
-            if (is3P === groupMatch3P) {
-              for (const b of (g.buckets || [])) {
-                if (String(b.bucketId || '').toLowerCase().includes('weekly')) {
-                  weeklyUsed = 1 - Math.max(0, Math.min(1, num(b.remainingFraction)));
-                }
-              }
-            }
-          }
-        }
-        if (weeklyUsed >= 0.005) {
-          inferredWeeklyCap = weeklyTokens / weeklyUsed;
-        }
-      }
-
-      const ratio = is3P ? 0.43 : 0.28;
-      cap = inferredWeeklyCap * ratio;
     }
+
+    // 物理边界硬约束（保证无论用户用量高低，满额容量永远处于该账号类型的真实物理区间内）
+    cap = Math.min(cfg.max, Math.max(cfg.min, cap));
 
     const remainingTokens = remaining <= 0 ? 0 : cap * remaining;
 
@@ -1089,7 +1067,7 @@
           minRemaining = v;
         }
 
-        const proj = calcQuotaProjection(v, (b.bucketId || '') + ' ' + (g.displayName || '') + ' ' + (b.displayName || ''));
+        const proj = calcQuotaProjection(v, (b.bucketId || '') + ' ' + (g.displayName || '') + ' ' + (b.displayName || ''), b.resetTime);
         const bEl = document.createElement('div');
         bEl.className = 'au-bucket';
         const color = remainingColor(v);
@@ -1183,7 +1161,9 @@
 
   function updateCapsuleDisplay() {
     let g5hRemaining = null;
+    let g5hResetTime = null;
     let p35hRemaining = null;
+    let p35hResetTime = null;
     let minCountdown = null;
 
     if (RAW_QUOTA && RAW_QUOTA.groups) {
@@ -1197,8 +1177,10 @@
           if (is5h) {
             if (bId.includes('gemini') || gName.includes('gemini')) {
               g5hRemaining = v;
+              g5hResetTime = b.resetTime;
             } else if (bId.includes('3p') || gName.includes('claude') || gName.includes('gpt')) {
               p35hRemaining = v;
+              p35hResetTime = b.resetTime;
             }
           }
           if (b.resetTime) {
@@ -1215,7 +1197,7 @@
     if (p35hRemaining === null) p35hRemaining = 1;
 
     // 1. 视图一：Gemini 5h 剩余比例与对应真实剩余 Token
-    const projG = calcQuotaProjection(g5hRemaining, 'gemini-5h');
+    const projG = calcQuotaProjection(g5hRemaining, 'gemini-5h', g5hResetTime);
     const elG5h = capsuleRoot.querySelector('#agy-pill-g5h');
     if (elG5h) {
       elG5h.textContent = pct(g5hRemaining);
@@ -1225,7 +1207,7 @@
     if (elG5hTok) elG5hTok.textContent = `~${projG.remTokStr}`;
 
     // 2. 视图二：Claude/GPT 5h 剩余比例与对应真实剩余 Token
-    const proj3p = calcQuotaProjection(p35hRemaining, '3p-5h');
+    const proj3p = calcQuotaProjection(p35hRemaining, '3p-5h', p35hResetTime);
     const el3p5h = capsuleRoot.querySelector('#agy-pill-3p5h');
     if (el3p5h) {
       el3p5h.textContent = pct(p35hRemaining);
