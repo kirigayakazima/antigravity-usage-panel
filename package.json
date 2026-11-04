@@ -1,11 +1,13 @@
 {
   "name": "antigravity-usage-panel",
-  "version": "1.1.2",
+  "version": "1.2.0",
   "description": "Google 反重力桌面端（Antigravity Desktop）实时额度与用量监控面板插件，原生对齐 DSH，支持秒级配额同步、Token 预算反推、182 天日历热力图与离线 SQLite 会话分析。",
   "type": "module",
   "main": "daemon.mjs",
   "scripts": {
     "start": "node daemon.mjs",
+    "fix": "一键安装并重启.bat",
+    "install:all": "一键安装并重启.bat",
     "hud": "powershell -ExecutionPolicy Bypass -NoProfile -File ./start-hud.ps1",
     "dashboard": "start http://127.0.0.1:19388",
     "inject:install": "node ./bin/inject-install.mjs",

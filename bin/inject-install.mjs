@@ -55,57 +55,64 @@ const utilsPath = join(tempExtractDir, 'dist', 'utils.js');
 if (existsSync(utilsPath)) {
   let utilsCode = readFileSync(utilsPath, 'utf8');
 
-  // 开启 devTools (让 F12 / Ctrl+Shift+I 永远可用)
-  utilsCode = utilsCode.replace('devTools: !electron_1.app.isPackaged,', 'devTools: true,');
+  // 开启 devTools (让 F12 / Ctrl+Shift+I 永远可用，兼容新旧版本)
+  utilsCode = utilsCode.replace(/devTools:\s*[^,]+,/, 'devTools: true,');
 
-  // 在 did-finish-load 中注入主世界执行脚本与控制台捕获
-  const didFinishLoadMarker = `win.webContents.on('did-finish-load', () => {`;
-  const utilsInjection = `
-        win.webContents.on('did-finish-load', () => {
-            // [Antigravity HUD] Main World 动态安全注入
-            try {
-                const _fs = require('node:fs');
-                const _injectFile = 'd:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\inject\\\\native-inject.js';
+  const didFinishLoadMarkerOld = `win.webContents.on('did-finish-load', () => {`;
+  const didFinishLoadMarkerNew = `hubContents.on('did-finish-load', handleDidFinishLoad);`;
+
+  const buildInjection = (targetVar, isOld) => `
+        // [Antigravity HUD] Main World 动态安全注入
+        try {
+            const _fs = require('node:fs');
+            const _injectFile = 'd:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\inject\\\\native-inject.js';
+            const _doInject = () => {
                 if (_fs.existsSync(_injectFile)) {
                     const _code = _fs.readFileSync(_injectFile, 'utf8');
-                    void win.webContents.executeJavaScript(_code).then(() => {
+                    void ${targetVar}.executeJavaScript(_code).then(() => {
                         _fs.appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[Init] HUD successfully injected into Main World\\n');
                     }).catch(err => {
                         _fs.appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[ExecErr] ' + (err.stack || err.message) + '\\n');
                     });
                 }
-            } catch (_err) {
+            };
+            ${targetVar}.on('did-finish-load', () => {
+                _doInject();
+            });
+
+            // 控制台日志实时同步至 renderer.log
+            ${targetVar}.on('console-message', (_event, _level, _msg) => {
                 try {
-                    require('node:fs').appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[MainErr] ' + _err.message + '\\n');
+                    require('node:fs').appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[Console:' + _level + '] ' + _msg + '\\n');
                 } catch (e) {}
-            }
-        });
+            });
 
-        // 控制台日志实时同步至 renderer.log
-        win.webContents.on('console-message', (_event, _level, _msg) => {
-            try {
-                require('node:fs').appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[Console:' + _level + '] ' + _msg + '\\n');
-            } catch (e) {}
-        });
-
-        // 绑定原生快捷键: Ctrl+R / F5 真实刷新页面, F12 快速唤出开发者调试工具
-        win.webContents.on('before-input-event', (event, input) => {
-            if (input.type === 'keyDown') {
-                if (((input.control || input.meta) && input.key.toLowerCase() === 'r') || input.key === 'F5') {
-                    event.preventDefault();
-                    win.webContents.reload();
-                } else if (input.key === 'F12' || ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i')) {
-                    event.preventDefault();
-                    win.webContents.toggleDevTools();
+            // 绑定原生快捷键: Ctrl+R / F5 真实刷新页面, F12 快速唤出开发者调试工具
+            ${targetVar}.on('before-input-event', (event, input) => {
+                if (input.type === 'keyDown') {
+                    if (((input.control || input.meta) && input.key.toLowerCase() === 'r') || input.key === 'F5') {
+                        event.preventDefault();
+                        ${targetVar}.reload();
+                    } else if (input.key === 'F12' || ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i')) {
+                        event.preventDefault();
+                        ${targetVar}.toggleDevTools();
+                    }
                 }
-            }
-        });
+            });
+        } catch (_err) {
+            try {
+                require('node:fs').appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[MainErr] ' + _err.message + '\\n');
+            } catch (e) {}
+        }
+        ${isOld ? "win.webContents.on('did-finish-load-orig', () => {" : "hubContents.on('did-finish-load', handleDidFinishLoad);"}`;
 
-        win.webContents.on('did-finish-load-orig', () => {`;
-
-  if (utilsCode.includes(didFinishLoadMarker)) {
-    utilsCode = utilsCode.replace(didFinishLoadMarker, utilsInjection);
-    console.log('⚡ 正在向 dist/utils.js 注入主世界 HUD 挂载器与 Ctrl+R/F12 原生快捷键...');
+  if (utilsCode.includes(didFinishLoadMarkerNew)) {
+    utilsCode = utilsCode.replace(didFinishLoadMarkerNew, buildInjection('hubContents', false));
+    console.log('⚡ 正在向 dist/utils.js 注入新版 HubView (hubContents) HUD 挂载器与 Ctrl+R/F12 原生快捷键...');
+    writeFileSync(utilsPath, utilsCode, 'utf8');
+  } else if (utilsCode.includes(didFinishLoadMarkerOld)) {
+    utilsCode = utilsCode.replace(didFinishLoadMarkerOld, buildInjection('win.webContents', true));
+    console.log('⚡ 正在向 dist/utils.js 注入传统 win.webContents HUD 挂载器与 Ctrl+R/F12 原生快捷键...');
     writeFileSync(utilsPath, utilsCode, 'utf8');
   } else {
     console.warn('⚠️ 未在 dist/utils.js 中找到 did-finish-load 挂载点');
