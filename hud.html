@@ -152,12 +152,10 @@
       <span class="text-xs">⚡</span>
     </div>
 
-    <!-- 核心配额摘要（实时反推数据） -->
+    <!-- 核心配额摘要 -->
     <div class="flex items-center gap-1.5 font-mono text-[11px] truncate flex-1 px-2 justify-center" id="capsule-summary-text">
       <span class="text-slate-400 font-sans">5h余:</span>
       <span id="capsule-5h-val" class="font-bold text-emerald-400">--%</span>
-      <span class="text-slate-600">·</span>
-      <span id="capsule-rem-tokens" class="text-indigo-300 font-semibold" title="预估剩余 Token 预算">~--</span>
       <span class="text-slate-600">·</span>
       <span id="capsule-reset-countdown" class="text-slate-300 text-[10px]" title="下次重置倒计时">--</span>
     </div>
@@ -216,13 +214,9 @@
         <div id="drawer-5h-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
       </div>
       <div class="flex justify-between items-center text-[9px] text-slate-400 pt-0.5">
-        <span id="drawer-5h-rem-tok" class="text-emerald-300 font-mono">剩余约: -- Token</span>
         <span id="drawer-5h-reset" class="text-slate-300">重置: --</span>
       </div>
-      <div class="flex justify-between items-center text-[9px] text-slate-400">
-        <span id="drawer-5h-calls" class="font-mono">还能调用 ≈ -- 次</span>
-        <span id="drawer-5h-cap" class="font-mono text-slate-500">容量 ≈ --</span>
-      </div>
+      <div class="text-[9px] text-slate-400" data-quota-estimate="gemini-5h">Token 参考</div>
     </div>
 
     <!-- 周限额核心卡片 -->
@@ -235,39 +229,9 @@
         <div id="drawer-weekly-bar" class="bg-indigo-500 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
       </div>
       <div class="flex justify-between items-center text-[9px] text-slate-400 pt-0.5">
-        <span id="drawer-weekly-rem-tok" class="text-indigo-300 font-mono">剩余约: -- Token</span>
         <span id="drawer-weekly-reset" class="text-slate-300">重置: --</span>
       </div>
-      <div class="flex justify-between items-center text-[9px] text-slate-400">
-        <span id="drawer-weekly-calls" class="font-mono">还能调用 ≈ -- 次</span>
-        <span id="drawer-weekly-cap" class="font-mono text-slate-500">周总预算 ≈ --</span>
-      </div>
-    </div>
-
-    <!-- 热门模型状态速览 -->
-    <div class="sub-card space-y-1">
-      <div class="text-[9px] text-slate-400 font-medium pb-0.5 border-b border-white/5 flex justify-between">
-        <span>🧩 核心模型即时状态</span>
-        <span class="text-emerald-400">动态反推</span>
-      </div>
-      <div class="grid grid-cols-2 gap-1.5 pt-1 text-[10px]">
-        <div class="flex items-center justify-between bg-black/20 p-1.5 rounded">
-          <span class="text-slate-300 truncate">Gemini 3.8 Flash</span>
-          <span id="m-38" class="font-mono text-emerald-400 font-bold ml-1">--%</span>
-        </div>
-        <div class="flex items-center justify-between bg-black/20 p-1.5 rounded">
-          <span class="text-slate-300 truncate">Gemini 3.7 Flash</span>
-          <span id="m-37" class="font-mono text-emerald-400 font-bold ml-1">--%</span>
-        </div>
-        <div class="flex items-center justify-between bg-black/20 p-1.5 rounded">
-          <span class="text-slate-300 truncate">Gemini 3.1 Pro</span>
-          <span id="m-31" class="font-mono text-emerald-400 font-bold ml-1">--%</span>
-        </div>
-        <div class="flex items-center justify-between bg-black/20 p-1.5 rounded">
-          <span class="text-slate-300 truncate">Claude 3.5 Sonnet</span>
-          <span class="font-mono text-indigo-400 font-bold ml-1">100%</span>
-        </div>
-      </div>
+      <div class="text-[9px] text-slate-400" data-quota-estimate="gemini-weekly">Token 参考</div>
     </div>
 
     <!-- 今日消耗简报 -->
@@ -325,7 +289,8 @@
     function formatResetTime(isoStr) {
       if (!isoStr) return '--';
       const diff = new Date(isoStr).getTime() - Date.now();
-      if (diff <= 0) return '即将重置';
+      if (!Number.isFinite(diff)) return '暂无刷新时间';
+      if (diff <= 0) return '等待额度更新';
       const hours = Math.floor(diff / 3600000);
       const mins = Math.floor((diff % 3600000) / 60000);
       if (hours >= 24) {
@@ -336,45 +301,29 @@
       return `${hours}h${mins}m`;
     }
 
-    // 预算与Token反推计算
-    function calcQuotaProjection(frac, windowType) {
-      const remaining = Math.max(0, Math.min(1, frac));
-      const used = 1 - remaining;
 
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const todayItem = RAW_DAILY.find(d => d.date === todayStr);
+    function dayKey(date) {
+      return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+    }
 
-      let todayTok = 0;
-      let todayGens = 0;
-      if (todayItem) {
-        const t = todayItem.tokens || {};
-        todayTok = (t.input || 0) + (t.output || 0) + (t.cacheRead || 0);
-        todayGens = todayItem.genCalls || 0;
+    let estimateAt = 0;
+    async function loadQuotaEstimates(force = false) {
+      if (!force && Date.now() - estimateAt < 30_000) return;
+      estimateAt = Date.now();
+      let estimates = {};
+      try {
+        const res = await fetch('/api/quota-estimates', { signal: AbortSignal.timeout(12000) });
+        if (res.ok) estimates = (await res.json()).estimates || {};
+      } catch {}
+      for (const el of document.querySelectorAll('[data-quota-estimate]')) {
+        const sample = estimates[el.dataset.quotaEstimate];
+        el.textContent = sample ? `估算总量 ≈ ${fmtNum(sample.capacity)} · 剩余 ≈ ${fmtNum(sample.remaining)} Token` : 'Token 参考 · 样本不足';
+        el.title = sample ? `${sample.source === 'recent' ? '近期' : '本周期'}本地样本，含缓存读取` : '';
       }
+    }
 
-      let cap = windowType === '5h' ? 104e6 : 623e6;
-      let calls = 0;
-
-      if (used >= 0.005 && todayTok > 0) {
-        cap = todayTok / used;
-        if (todayGens > 0) {
-          calls = Math.round(todayGens * (remaining / used));
-        }
-      } else {
-        calls = Math.round((cap * remaining) / 110000);
-      }
-
-      const remTok = cap * remaining;
-      const usedTok = cap * used;
-
-      return {
-        remPct: (remaining * 100).toFixed(1) + '%',
-        usedPct: (used * 100).toFixed(1) + '%',
-        remTokStr: fmtNum(remTok),
-        capStr: fmtNum(cap),
-        usedTokStr: fmtNum(usedTok),
-        remCalls: calls
-      };
+    function quotaPercent(frac) {
+      return typeof frac === 'number' && frac >= 0 && frac <= 1 ? (frac * 100).toFixed(1) + '%' : '—';
     }
 
     // 展开/折叠动画与原生窗口大小同步
@@ -427,36 +376,25 @@
       for (const group of quota.groups) {
         if (group.displayName?.includes('Gemini')) {
           for (const b of group.buckets || []) {
-            const frac = b.remainingFraction ?? 1;
-            const resetStr = formatResetTime(b.resetTime);
-            const proj = calcQuotaProjection(frac, b.window);
+            const percent = quotaPercent(b.remainingFraction);
+            const resetStr = b.remainingFraction === 1 ? '额度充足' : formatResetTime(b.resetTime);
 
             if (b.bucketId === 'gemini-5h') {
               // 胶囊条微型显示
-              document.getElementById('capsule-5h-val').textContent = proj.remPct;
-              document.getElementById('capsule-rem-tokens').textContent = `~${proj.remTokStr}`;
+              document.getElementById('capsule-5h-val').textContent = percent;
               document.getElementById('capsule-reset-countdown').textContent = `⏳ ${resetStr}`;
 
               // 抽屉面板
-              document.getElementById('drawer-5h-val').textContent = proj.remPct;
-              document.getElementById('drawer-5h-bar').style.width = proj.remPct;
-              document.getElementById('drawer-5h-rem-tok').textContent = `剩余约: ${proj.remTokStr} Token`;
+              document.getElementById('drawer-5h-val').textContent = percent;
+              document.getElementById('drawer-5h-bar').style.width = percent === '—' ? '0%' : percent;
               document.getElementById('drawer-5h-reset').textContent = `重置: ${resetStr}`;
-              document.getElementById('drawer-5h-calls').textContent = `还能调用 ≈ ${proj.remCalls.toLocaleString()} 次`;
-              document.getElementById('drawer-5h-cap').textContent = `容量 ≈ ${proj.capStr}`;
 
               // 模型
-              document.getElementById('m-38').textContent = proj.remPct;
-              document.getElementById('m-37').textContent = proj.remPct;
-              document.getElementById('m-31').textContent = proj.remPct;
 
             } else if (b.bucketId === 'gemini-weekly') {
-              document.getElementById('drawer-weekly-val').textContent = proj.remPct;
-              document.getElementById('drawer-weekly-bar').style.width = proj.remPct;
-              document.getElementById('drawer-weekly-rem-tok').textContent = `剩余约: ${proj.remTokStr} Token`;
+              document.getElementById('drawer-weekly-val').textContent = percent;
+              document.getElementById('drawer-weekly-bar').style.width = percent === '—' ? '0%' : percent;
               document.getElementById('drawer-weekly-reset').textContent = `重置: ${resetStr}`;
-              document.getElementById('drawer-weekly-calls').textContent = `还能调用 ≈ ${proj.remCalls.toLocaleString()} 次`;
-              document.getElementById('drawer-weekly-cap').textContent = `周总预算 ≈ ${proj.capStr}`;
             }
           }
         }
@@ -465,17 +403,17 @@
       // 今日会话与 Token 统计
       if (allData.conversations) {
         RAW_DAILY = Object.values(allData.conversations.byDay || {});
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = dayKey(new Date());
         const today = RAW_DAILY.find(d => d.date === todayStr);
-        if (today) {
-          const t = today.tokens || {};
+        {
+          const t = today?.tokens || {};
           const inp = t.input || 0;
           const out = t.output || 0;
           const cache = t.cacheRead || 0;
           const totalIn = inp + cache;
-          const hitRate = totalIn > 0 ? ((cache / totalIn) * 100).toFixed(1) : '0';
+          const hitRate = totalIn > 0 ? ((cache / totalIn) * 100).toFixed(1) + '%' : '—';
 
-          document.getElementById('drawer-hit-rate').textContent = `命中率 ${hitRate}%`;
+          document.getElementById('drawer-hit-rate').textContent = `命中率 ${hitRate}`;
           document.getElementById('stat-input').textContent = fmtNum(inp);
           document.getElementById('stat-cache').textContent = fmtNum(cache);
           document.getElementById('stat-output').textContent = fmtNum(out);
@@ -504,6 +442,8 @@
     // 初始化
     fetchAll();
     setInterval(fetchAll, 3000);
+    loadQuotaEstimates();
+    setInterval(loadQuotaEstimates, 30000);
 
     document.getElementById('btn-refresh').addEventListener('click', () => {
       const btn = document.getElementById('btn-refresh');

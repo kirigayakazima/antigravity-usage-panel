@@ -1,196 +1,106 @@
-import { existsSync, copyFileSync, cpSync, readFileSync, writeFileSync, rmSync, mkdtempSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, copyFileSync, cpSync, readFileSync, writeFileSync, rmSync,
+  mkdtempSync, renameSync, createReadStream, lstatSync, readlinkSync } from 'node:fs';
+import { join, dirname, resolve, relative, isAbsolute } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { patchClient, checkSyntax } from '../lib/install-patch.mjs';
 
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
-
+const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const localAppData = process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local');
-const appDir = join(localAppData, 'Programs', 'antigravity');
-const resourcesDir = join(appDir, 'resources');
+const resourcesDir = join(localAppData, 'Programs', 'antigravity', 'resources');
 const asarPath = join(resourcesDir, 'app.asar');
 const bakPath = join(resourcesDir, 'app.asar.bak');
-const origUnpackedPath = join(resourcesDir, 'app.asar.unpacked');
-const bakUnpackedPath = join(resourcesDir, 'app.asar.bak.unpacked');
+const scripts = ['utils', 'main', 'preload'];
 
-const projectRoot = process.cwd();
-const injectJsPath = join(projectRoot, 'inject', 'native-inject.js');
-
-console.log('====================================================');
-console.log('   Google 反重力桌面端原生魔改注入安装器 (v4.2 双核引擎) ');
-console.log('====================================================');
-
-if (!existsSync(asarPath)) {
-  console.error(`❌ 未找到反重力客户端 app.asar: ${asarPath}`);
-  process.exit(1);
+function readScripts(archive) {
+  return Object.fromEntries(scripts.map(name => [name, asar.extractFile(archive, `dist/${name}.js`).toString('utf8')]));
 }
 
-// 1. 确保纯净备份存在
-if (!existsSync(bakPath)) {
-  console.log(`📦 正在创建原始客户端纯净备份: ${bakPath}...`);
-  copyFileSync(asarPath, bakPath);
-  console.log('✅ 纯净备份创建成功！');
-} else {
-  console.log(`🛡️ 检测到已存在的纯净备份: ${bakPath}`);
+function removeTemp(path, parent) {
+  const rel = relative(resolve(parent), resolve(path));
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error(`拒绝清理不安全路径: ${path}`);
+  rmSync(path, { recursive: true, force: true });
 }
 
-if (!existsSync(bakUnpackedPath) && existsSync(origUnpackedPath)) {
-  console.log(`📦 正在备份 unpacked 资源包: ${bakUnpackedPath}...`);
+async function install() {
+  if (!existsSync(asarPath)) throw new Error(`未找到客户端: ${asarPath}`);
+  const source = existsSync(bakPath) ? bakPath : asarPath;
+  const original = readScripts(source);
+  const installedPkg = JSON.parse(asar.extractFile(asarPath, 'package.json'));
+  const backupPkg = JSON.parse(asar.extractFile(source, 'package.json'));
+  if (installedPkg.version !== backupPkg.version) {
+    throw new Error(`备份版本 ${backupPkg.version} 与客户端 ${installedPkg.version} 不一致，已停止，避免覆盖新版客户端。`);
+  }
+  const patched = patchClient(original, projectRoot,
+    readFileSync(join(projectRoot, 'inject', 'native-inject.js'), 'utf8'), process.execPath);
+  console.log(`✅ ${backupPkg.version}: 挂载点及三个注入文件的语法校验通过。`);
+
+  if (!existsSync(bakPath)) {
+    copyFileSync(asarPath, bakPath);
+    console.log(`📦 已保存原始备份: ${bakPath}`);
+  }
+  const unpackedPath = `${asarPath}.unpacked`;
+  const backupUnpackedPath = `${bakPath}.unpacked`;
+  if (!existsSync(backupUnpackedPath) && existsSync(unpackedPath)) {
+    cpSync(unpackedPath, backupUnpackedPath, { recursive: true });
+  }
+
+  const extractDir = mkdtempSync(join(tmpdir(), 'agy-asar-inject-'));
+  const stageDir = mkdtempSync(join(resourcesDir, 'agy-install-'));
+  const stageAsar = join(stageDir, 'app.asar');
   try {
-    cpSync(origUnpackedPath, bakUnpackedPath, { recursive: true });
-    console.log('✅ unpacked 备份创建成功！');
-  } catch (e) {
-    console.warn('⚠️ 备份 unpacked 失败:', e.message);
-  }
-}
+    asar.extractAll(bakPath, extractDir);
+    for (const name of scripts) writeFileSync(join(extractDir, 'dist', `${name}.js`), patched[name], 'utf8');
 
-// 2. 永远从官方纯净备份还原后再解包 (保证绝对无任何旧版残留)
-const tempExtractDir = mkdtempSync(join(tmpdir(), 'agy-asar-inject-'));
-console.log(`📂 正在解包官方纯净 app.asar.bak 到临时目录: ${tempExtractDir}...`);
-asar.extractAll(bakPath, tempExtractDir);
-
-// 3. 注入 dist/utils.js (主进程核心注入：主世界 executeJavaScript + DevTools 开启 + Ctrl+R 快捷键)
-const utilsPath = join(tempExtractDir, 'dist', 'utils.js');
-if (existsSync(utilsPath)) {
-  let utilsCode = readFileSync(utilsPath, 'utf8');
-
-  // 开启 devTools (让 F12 / Ctrl+Shift+I 永远可用，兼容新旧版本)
-  utilsCode = utilsCode.replace(/devTools:\s*[^,]+,/, 'devTools: true,');
-
-  const didFinishLoadMarkerOld = `win.webContents.on('did-finish-load', () => {`;
-  const didFinishLoadMarkerNew = `hubContents.on('did-finish-load', handleDidFinishLoad);`;
-
-  const buildInjection = (targetVar, isOld) => `
-        // [Antigravity HUD] Main World 动态安全注入
-        try {
-            const _fs = require('node:fs');
-            const _injectFile = 'd:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\inject\\\\native-inject.js';
-            const _doInject = () => {
-                if (_fs.existsSync(_injectFile)) {
-                    const _code = _fs.readFileSync(_injectFile, 'utf8');
-                    void ${targetVar}.executeJavaScript(_code).then(() => {
-                        _fs.appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[Init] HUD successfully injected into Main World\\n');
-                    }).catch(err => {
-                        _fs.appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[ExecErr] ' + (err.stack || err.message) + '\\n');
-                    });
-                }
-            };
-            ${targetVar}.on('did-finish-load', () => {
-                _doInject();
-            });
-
-            // 控制台日志实时同步至 renderer.log
-            ${targetVar}.on('console-message', (_event, _level, _msg) => {
-                try {
-                    require('node:fs').appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[Console:' + _level + '] ' + _msg + '\\n');
-                } catch (e) {}
-            });
-
-            // 绑定原生快捷键: Ctrl+R / F5 真实刷新页面, F12 快速唤出开发者调试工具
-            ${targetVar}.on('before-input-event', (event, input) => {
-                if (input.type === 'keyDown') {
-                    if (((input.control || input.meta) && input.key.toLowerCase() === 'r') || input.key === 'F5') {
-                        event.preventDefault();
-                        ${targetVar}.reload();
-                    } else if (input.key === 'F12' || ((input.control || input.meta) && input.shift && input.key.toLowerCase() === 'i')) {
-                        event.preventDefault();
-                        ${targetVar}.toggleDevTools();
-                    }
-                }
-            });
-        } catch (_err) {
-            try {
-                require('node:fs').appendFileSync('d:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\renderer.log', '[MainErr] ' + _err.message + '\\n');
-            } catch (e) {}
-        }
-        ${isOld ? "win.webContents.on('did-finish-load-orig', () => {" : "hubContents.on('did-finish-load', handleDidFinishLoad);"}`;
-
-  if (utilsCode.includes(didFinishLoadMarkerNew)) {
-    utilsCode = utilsCode.replace(didFinishLoadMarkerNew, buildInjection('hubContents', false));
-    console.log('⚡ 正在向 dist/utils.js 注入新版 HubView (hubContents) HUD 挂载器与 Ctrl+R/F12 原生快捷键...');
-    writeFileSync(utilsPath, utilsCode, 'utf8');
-  } else if (utilsCode.includes(didFinishLoadMarkerOld)) {
-    utilsCode = utilsCode.replace(didFinishLoadMarkerOld, buildInjection('win.webContents', true));
-    console.log('⚡ 正在向 dist/utils.js 注入传统 win.webContents HUD 挂载器与 Ctrl+R/F12 原生快捷键...');
-    writeFileSync(utilsPath, utilsCode, 'utf8');
-  } else {
-    console.warn('⚠️ 未在 dist/utils.js 中找到 did-finish-load 挂载点');
-  }
-}
-
-// 4. 向 dist/main.js 注入伴随自愈钩子 (主进程纯 Node 环境，反重力启动时自动拉起 19388)
-const mainPath = join(tempExtractDir, 'dist', 'main.js');
-if (existsSync(mainPath)) {
-  let mainCode = readFileSync(mainPath, 'utf8');
-  const mainMarker = 'ANTIGRAVITY_USAGE_PANEL_AUTO_LAUNCH';
-  if (mainCode.includes(mainMarker)) {
-    const idx = mainCode.indexOf(mainMarker);
-    const cutoff = mainCode.lastIndexOf('\n', idx);
-    mainCode = mainCode.slice(0, cutoff > 0 ? cutoff : idx).trim();
-  }
-  const autoLaunchSnippet = `
-// ==================== ANTIGRAVITY_USAGE_PANEL_AUTO_LAUNCH ====================
-try {
-  const _http = require('node:http');
-  const _cp = require('node:child_process');
-  const _fs = require('node:fs');
-  const _req = _http.get('http://127.0.0.1:19388/api/ping', () => {});
-  _req.on('error', () => {
-    const daemon = 'd:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel\\\\daemon.mjs';
-    if (_fs.existsSync(daemon)) {
-      const p = _cp.spawn('node', [daemon], {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-        cwd: 'd:\\\\CodePackage\\\\DSPlug\\\\antigravity-usage-panel'
-      });
-      p.unref();
+    // Preserve every entry's original packed/unpacked status, including native assets.
+    const entries = asar.listPackage(bakPath).map(entry => entry.replace(/^[/\\]+/, ''));
+    const streams = entries.map(entry => {
+      const diskPath = join(extractDir, entry);
+      const info = asar.statFile(bakPath, entry, false);
+      const stat = lstatSync(diskPath);
+      return {
+        path: entry, type: info.files ? 'directory' : info.link ? 'link' : 'file',
+        stat, unpacked: Boolean(info.unpacked),
+        streamGenerator: () => createReadStream(diskPath),
+        ...(info.link ? { symlink: readlinkSync(diskPath) } : {})
+      };
+    });
+    await asar.createPackageFromStreams(stageAsar, streams);
+    for (const [name, code] of Object.entries(readScripts(stageAsar))) {
+      checkSyntax(code, `packed/dist/${name}.js`);
+      if (code !== patched[name]) throw new Error(`打包内容校验失败: ${name}`);
     }
-  });
-  _req.setTimeout(800, () => _req.destroy());
-} catch (_e) {}
-// =============================================================================
-`;
-  writeFileSync(mainPath, mainCode + '\n' + autoLaunchSnippet, 'utf8');
-  console.log('⚡ 正在向 dist/main.js 注入伴随自愈生命周期钩子 (客户端启动即自动守护)...');
-}
-
-// 5. 保留 preload.js 注入 (双重保险)
-const preloadPath = join(tempExtractDir, 'dist', 'preload.js');
-if (existsSync(preloadPath)) {
-  let originalPreload = readFileSync(preloadPath, 'utf8');
-  const markerIdx = originalPreload.indexOf('initAntigravityQuotaInjection');
-  if (markerIdx > 0) {
-    const cutoff = originalPreload.lastIndexOf('\n', markerIdx);
-    originalPreload = originalPreload.slice(0, cutoff > 0 ? cutoff : markerIdx).trim();
+    for (const entry of entries) {
+      const before = asar.statFile(bakPath, entry, false);
+      const after = asar.statFile(stageAsar, entry, false);
+      if (Boolean(before.unpacked) !== Boolean(after.unpacked)) throw new Error(`unpacked 标记发生变化: ${entry}`);
+      // Never silently overwrite another version's external assets.
+      if (before.unpacked && !before.files && !before.link) {
+        if (!readFileSync(join(unpackedPath, entry)).equals(asar.extractFile(stageAsar, entry))) {
+          throw new Error(`客户端 unpacked 资源与备份不一致: ${entry}`);
+        }
+      }
+    }
+    console.log('✅ 打包后语法、脚本内容及 unpacked 资源校验通过。');
+    const previousPath = `${asarPath}.previous-${Date.now()}`;
+    renameSync(asarPath, previousPath);
+    try {
+      renameSync(stageAsar, asarPath);
+    } catch (error) {
+      renameSync(previousPath, asarPath);
+      throw error;
+    }
+    console.log(`✅ 安装完成；安装前文件保留于 ${previousPath}`);
+  } finally {
+    removeTemp(extractDir, tmpdir());
+    removeTemp(stageDir, resourcesDir);
   }
-  const injectCode = readFileSync(injectJsPath, 'utf8');
-  const modifiedPreload = originalPreload + '\n\n' + injectCode;
-  writeFileSync(preloadPath, modifiedPreload, 'utf8');
 }
 
-// 6. 打包回临时 asar
-const tempNewAsar = join(tmpdir(), `app-injected-${Date.now()}.asar`);
-console.log('📦 正在重新打包 app.asar (unpackDir: node_modules/chrome-devtools-mcp)...');
-
-await asar.createPackageWithOptions(tempExtractDir, tempNewAsar, {
-  unpackDir: 'node_modules/chrome-devtools-mcp'
+install().catch(error => {
+  console.error(`❌ 安装失败: ${error.stack || error.message}`);
+  process.exitCode = 1;
 });
-
-// 7. 替换到目标目录
-console.log(`🚀 正在应用更新至反重力客户端: ${asarPath}...`);
-copyFileSync(tempNewAsar, asarPath);
-
-// 8. 清理临时文件
-try {
-  rmSync(tempExtractDir, { recursive: true, force: true });
-  rmSync(tempNewAsar, { force: true });
-} catch (e) {}
-
-console.log('\n🎉 魔改注入 100% 成功完成！');
-console.log('👉 注入亮点：');
-console.log('   1. 【主世界直通注入】通过 webContents.executeJavaScript 绕过 contextIsolation，直达真实 DOM 与 CSRF；');
-console.log('   2. 【原生快捷键解锁】开启 Ctrl+R / F5 真实页面重载，开启 F12 开发者调试控制台；');
-console.log('   3. 【透明日志追踪】所有前端输出与潜在报错自动记录至 renderer.log；');
-console.log('   4. 【主进程伴随守护】反重力桌面端启动即可自动拉起 19388 守护服务！\n');

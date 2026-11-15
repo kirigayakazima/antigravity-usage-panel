@@ -1,9 +1,10 @@
 import http from 'node:http';
-import { readdirSync, readFileSync, statSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import { scanConversations } from './lib/conversations.js';
 import { HistoryStore } from './lib/history.js';
+import { estimateQuota } from './lib/quota-estimates.mjs';
 
 process.on('uncaughtException', (err) => {
   try {
@@ -24,6 +25,8 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 const PORT = 19388;
 const home = homedir();
 const historyDir = join(home, '.dsh', 'antigravity-usage');
+const conversationCacheDir = join(historyDir, 'panel-cache');
+const quotaSamplesFile = join(historyDir, 'panel-quota-samples.json');
 const historyStore = new HistoryStore(historyDir, 180);
 try {
   historyStore.load();
@@ -45,6 +48,14 @@ let lastQuotaData = null;
 let lastQuotaTime = 0;
 let lastConvData = null;
 let lastConvTime = 0;
+let conversationScan;
+let tokenEvents = [];
+const quotaSamples = new Map();
+try {
+  for (const [key, sample] of Object.entries(JSON.parse(readFileSync(quotaSamplesFile, 'utf8')))) {
+    quotaSamples.set(key, sample);
+  }
+} catch {}
 
 async function testLsConnection(port, knownCsrf = null) {
   for (const proto of ['https', 'http']) {
@@ -247,19 +258,17 @@ async function getConversations() {
     return lastConvData;
   }
 
-  try {
-    const dataDir = mkdtempSync(join(tmpdir(), 'au-conv-'));
-    const result = await scanConversations({ dataDir, maxConversationScan: Infinity });
-    lastConvData = {
-      timestamp: now,
-      ...result
-    };
-    lastConvTime = now;
-    return lastConvData;
-  } catch (err) {
-    if (lastConvData) return lastConvData;
-    throw err;
+  if (!conversationScan) {
+    conversationScan = scanConversations({ dataDir: conversationCacheDir, maxConversationScan: Infinity, includeTokenEvents: true })
+      .then(({ tokenEvents: events, ...result }) => {
+        tokenEvents = events || [];
+        lastConvTime = Date.now();
+        lastConvData = { timestamp: lastConvTime, ...result };
+        return lastConvData;
+      })
+      .finally(() => { conversationScan = null; });
   }
+  return conversationScan;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -301,6 +310,22 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/quota-estimates') {
+    try {
+      const [, quota] = await Promise.all([getConversations(), getQuota()]);
+      const estimates = estimateQuota(quota, tokenEvents, quotaSamples);
+      if (Object.values(estimates).some(sample => sample.source === 'current')) {
+        try { writeFileSync(quotaSamplesFile, JSON.stringify(Object.fromEntries(quotaSamples)), 'utf8'); } catch {}
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ estimates }));
+    } catch {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ estimates: {} }));
     }
     return;
   }

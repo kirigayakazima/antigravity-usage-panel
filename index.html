@@ -148,6 +148,14 @@
           <button class="filter-btn" data-days="90">近90天</button>
           <button class="filter-btn active" data-days="all">全部</button>
         </div>
+        <div class="flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded border" style="background: var(--bg-card); border-color: var(--border-main)" id="custom-date-group">
+          <span style="color: var(--text-muted)">开始:</span>
+          <input type="date" id="index-start-date" class="bg-transparent border border-slate-300 dark:border-slate-700 rounded px-1 text-[10px] outline-none" title="开始日期" />
+          <span style="color: var(--text-muted)">截止:</span>
+          <input type="date" id="index-end-date" class="bg-transparent border border-slate-300 dark:border-slate-700 rounded px-1 text-[10px] outline-none" title="截止日期" />
+          <button id="index-date-apply" class="px-1.5 py-0.5 rounded bg-indigo-500 text-white text-[10px] hover:bg-indigo-600 transition">筛选</button>
+          <button id="index-date-reset" class="px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-700 text-[10px] hover:bg-slate-200 dark:hover:bg-slate-800 transition">重置</button>
+        </div>
         <button id="refresh-btn" class="p-1.5 rounded border hover:opacity-80 transition" style="background: var(--bg-card); border-color: var(--border-main)" title="立即刷新数据">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
@@ -222,10 +230,10 @@
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
             <span class="font-semibold" id="account-name-label">当前登录用户</span>
-            <span class="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-mono text-[10px]">Google AI Pro</span>
+            <span class="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-600 dark:text-indigo-400 font-mono text-[10px]">本地账号</span>
           </div>
           <div class="text-[10px] font-mono" style="color: var(--text-muted)">
-            ⚡ Token 预算反推引擎已激活
+            语言服务器提供的额度
           </div>
         </section>
 
@@ -233,7 +241,7 @@
         <section class="p-3.5 rounded-lg border space-y-3" style="background: var(--bg-card); border-color: var(--border-main)">
           <div class="font-semibold flex justify-between items-center">
             <span>✨ Gemini Models</span>
-            <span class="text-[10px] font-normal" style="color: var(--text-muted)">Flash & Pro 共享限额 · 动态反推</span>
+            <span class="text-[10px] font-normal" style="color: var(--text-muted)">模型组共享额度</span>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -242,25 +250,18 @@
               <div class="flex justify-between items-start">
                 <div>
                   <span class="text-[11px] font-medium" style="color: var(--text-muted)">Weekly Limit Remaining</span>
-                  <div class="text-[11px] text-indigo-600 dark:text-indigo-400 font-medium flex items-center gap-1 mt-0.5" id="gemini-weekly-token-est">
-                    <span>≈ 剩余约</span>
-                    <b class="font-mono text-xs font-bold" id="gemini-weekly-rem-tok">--</b>
-                    <span>Token</span>
-                  </div>
                 </div>
                 <div class="text-right">
                   <span id="gemini-weekly-val" class="font-mono font-bold text-base text-indigo-600 dark:text-indigo-400">--%</span>
-                  <div class="text-[9px] font-mono opacity-70" id="gemini-weekly-calls-est">计算中...</div>
                 </div>
               </div>
               <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div id="gemini-weekly-bar" class="bg-indigo-500 h-full rounded-full transition-all duration-500" style="width: 100%"></div>
+                <div id="gemini-weekly-bar" class="bg-indigo-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
               </div>
               <div class="flex justify-between text-[10px]" style="color: var(--text-muted)">
                 <span id="gemini-weekly-reset">重置: --</span>
-                <span id="gemini-weekly-cap" class="font-mono">周总预算 ≈ --</span>
-                <span id="gemini-weekly-used">已用: --%</span>
               </div>
+              <div class="text-[10px]" style="color: var(--text-muted)" data-quota-estimate="gemini-weekly">Token 参考</div>
             </div>
 
             <!-- 5h -->
@@ -268,25 +269,18 @@
               <div class="flex justify-between items-start">
                 <div>
                   <span class="text-[11px] font-medium" style="color: var(--text-muted)">Five Hour Limit Remaining</span>
-                  <div class="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 mt-0.5" id="gemini-5h-token-est">
-                    <span>≈ 剩余约</span>
-                    <b class="font-mono text-xs font-bold" id="gemini-5h-rem-tok">--</b>
-                    <span>Token</span>
-                  </div>
                 </div>
                 <div class="text-right">
                   <span id="gemini-5h-val" class="font-mono font-bold text-base text-emerald-600 dark:text-emerald-400">--%</span>
-                  <div class="text-[9px] font-mono opacity-70" id="gemini-5h-calls-est">计算中...</div>
                 </div>
               </div>
               <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div id="gemini-5h-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 100%"></div>
+                <div id="gemini-5h-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
               </div>
               <div class="flex justify-between text-[10px]" style="color: var(--text-muted)">
                 <span id="gemini-5h-reset">重置: --</span>
-                <span id="gemini-5h-cap" class="font-mono">5h预算容量 ≈ --</span>
-                <span id="gemini-5h-used">已用: --%</span>
               </div>
+              <div class="text-[10px]" style="color: var(--text-muted)" data-quota-estimate="gemini-5h">Token 参考</div>
             </div>
           </div>
         </section>
@@ -295,51 +289,22 @@
         <section class="p-3.5 rounded-lg border space-y-3" style="background: var(--bg-card); border-color: var(--border-main)">
           <div class="font-semibold flex justify-between items-center">
             <span>🧠 Claude and GPT models</span>
-            <span class="text-[10px] text-emerald-600 dark:text-emerald-400">充裕 100%</span>
           </div>
 
           <div class="grid grid-cols-2 gap-2.5">
             <div class="p-2 rounded border" style="background: var(--bg-subtle); border-color: var(--border-main)">
               <div class="text-[10px]" style="color: var(--text-muted)">Weekly Limit</div>
-              <div id="claude-weekly-val" class="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">100.00%</div>
+              <div id="claude-weekly-val" class="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">—</div>
             </div>
+              <div class="text-[10px]" style="color: var(--text-muted)" data-quota-estimate="3p-weekly">Token 参考</div>
             <div class="p-2 rounded border" style="background: var(--bg-subtle); border-color: var(--border-main)">
               <div class="text-[10px]" style="color: var(--text-muted)">Five Hour Limit</div>
-              <div id="claude-5h-val" class="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">100.00%</div>
+              <div id="claude-5h-val" class="text-sm font-bold font-mono text-indigo-600 dark:text-indigo-400 mt-0.5">—</div>
             </div>
+              <div class="text-[10px]" style="color: var(--text-muted)" data-quota-estimate="3p-5h">Token 参考</div>
           </div>
         </section>
 
-        <!-- 各模型状态 -->
-        <section class="p-3 rounded-lg border space-y-2" style="background: var(--bg-card); border-color: var(--border-main)">
-          <div class="font-semibold">🧩 各模型实时状态 (按 5h 剩余反推)</div>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]" id="models-quick-status">
-            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
-              <span class="truncate">Gemini 3.8 Flash</span>
-              <span class="font-mono text-emerald-600 dark:text-emerald-400 font-bold ml-1" id="m-gemini-38">--%</span>
-            </div>
-            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
-              <span class="truncate">Gemini 3.7 Flash</span>
-              <span class="font-mono text-emerald-600 dark:text-emerald-400 font-bold ml-1" id="m-gemini-37">--%</span>
-            </div>
-            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
-              <span class="truncate">Gemini 3.1 Pro</span>
-              <span class="font-mono text-emerald-600 dark:text-emerald-400 font-bold ml-1" id="m-gemini-31">--%</span>
-            </div>
-            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
-              <span class="truncate">Claude 3.5 Sonnet</span>
-              <span class="font-mono text-indigo-600 dark:text-indigo-400 font-bold ml-1">100%</span>
-            </div>
-            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
-              <span class="truncate">Claude 3.7 Sonnet</span>
-              <span class="font-mono text-indigo-600 dark:text-indigo-400 font-bold ml-1">100%</span>
-            </div>
-            <div class="flex items-center justify-between p-1.5 rounded" style="background: var(--bg-subtle)">
-              <span class="truncate">GPT-OSS 120B</span>
-              <span class="font-mono text-indigo-600 dark:text-indigo-400 font-bold ml-1">100%</span>
-            </div>
-          </div>
-        </section>
       </div>
 
       <!-- ================= Tab 2：趋势 ================= -->
@@ -355,19 +320,18 @@
               <line x1="30" y1="20" x2="480" y2="20" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
               <text x="24" y="24" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">100%</text>
               <line x1="30" y1="60" x2="480" y2="60" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
-              <text x="24" y="64" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">75%</text>
+              <text x="24" y="64" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">67%</text>
               <line x1="30" y1="100" x2="480" y2="100" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
-              <text x="24" y="104" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">50%</text>
+              <text x="24" y="104" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">33%</text>
               <line x1="30" y1="140" x2="480" y2="140" stroke="currentColor" stroke-opacity="0.15" stroke-dasharray="3 3" />
-              <text x="24" y="144" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">25%</text>
+              <text x="24" y="144" fill="currentColor" opacity="0.6" font-size="9" text-anchor="end">0%</text>
 
-              <path id="trend-line-weekly" d="M 30 22 Q 150 23, 270 24 T 400 25 T 480 26" fill="none" stroke="#6366f1" stroke-width="2.5" />
-              <path id="trend-line-5h" d="M 30 22 Q 150 25, 270 32 T 400 40 T 480 44" fill="none" stroke="#16a34a" stroke-width="2" stroke-dasharray="3 2" />
+              <path id="trend-line-weekly" d="" fill="none" stroke="#6366f1" stroke-width="2.5" />
+              <path id="trend-line-5h" d="" fill="none" stroke="#16a34a" stroke-width="2" stroke-dasharray="3 2" />
             </svg>
             <div class="flex justify-between text-[10px] mt-2" style="color: var(--text-muted)">
               <span class="text-indigo-600 dark:text-indigo-400" id="trend-label-weekly">● 周配额 (--%)</span>
               <span class="text-emerald-600 dark:text-emerald-400" id="trend-label-5h">● 5小时滚动 (--%)</span>
-              <span class="text-emerald-600 dark:text-emerald-400">🟢 运行平稳</span>
             </div>
           </div>
         </section>
@@ -376,12 +340,7 @@
       <!-- ================= Tab 3：热力图 ================= -->
       <div id="tab-heatmap" class="tab-content space-y-3">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div class="flex items-center gap-1.5 flex-wrap" id="heat-metrics">
-            <button class="metric-btn active" data-m="sessions">会话数</button>
-            <button class="metric-btn" data-m="steps">步数</button>
-            <button class="metric-btn" data-m="tokens">token</button>
-            <button class="metric-btn" data-m="cache">缓存读取</button>
-          </div>
+          <span>色深表示总 Token，悬停查看当天明细</span>
           <span class="text-[11px]" style="color: var(--text-muted)" id="heat-peak">近 182 天</span>
         </div>
 
@@ -439,14 +398,14 @@
         </section>
 
         <section class="p-3.5 rounded-lg border space-y-2" style="background: var(--bg-card); border-color: var(--border-main)">
-          <div class="font-semibold">🌸 按模型用量汇总</div>
+          <div class="font-semibold">🌸 按模型用量汇总（全部历史）</div>
           <div class="overflow-x-auto">
             <table class="w-full text-[11px] text-left">
               <thead>
                 <tr class="border-b" style="border-color: var(--border-main); color: var(--text-muted)">
                   <th class="py-1.5 font-medium">模型</th>
                   <th class="py-1.5 font-medium text-right">生成</th>
-                  <th class="py-1.5 font-medium text-right">输入</th>
+                  <th class="py-1.5 font-medium text-right">未命中输入</th>
                   <th class="py-1.5 font-medium text-right">输出</th>
                   <th class="py-1.5 font-medium text-right">缓存读取</th>
                   <th class="py-1.5 font-medium text-right">命中率</th>
@@ -463,24 +422,9 @@
       <!-- ================= Tab 5：重置 ================= -->
       <div id="tab-resets" class="tab-content space-y-3">
         <section class="p-3.5 rounded-lg border space-y-2" style="background: var(--bg-card); border-color: var(--border-main)">
-          <div class="font-semibold">🔄 配额恢复与重置事件</div>
-          <p class="text-[10px]" style="color: var(--text-muted)">监控配额上升与滚动重置行为。</p>
-          <div class="space-y-1.5 pt-1 text-[11px]" id="resets-list">
-            <div class="p-2 rounded border flex justify-between" style="background: var(--bg-subtle); border-color: var(--border-main)">
-              <div>
-                <span class="text-emerald-600 dark:text-emerald-400 font-bold">+9.09% 滚动恢复</span>
-                <span class="ml-2" style="color: var(--text-muted)">Gemini 5-Hour Limit</span>
-              </div>
-              <span class="text-[10px]" style="color: var(--text-muted)">今天 11:46</span>
-            </div>
-            <div class="p-2 rounded border flex justify-between" style="background: var(--bg-subtle); border-color: var(--border-main)">
-              <div>
-                <span class="text-emerald-600 dark:text-emerald-400 font-bold">+100.0% 周期刷新</span>
-                <span class="ml-2" style="color: var(--text-muted)">Gemini Weekly Limit</span>
-              </div>
-              <span class="text-[10px]" style="color: var(--text-muted)">10月01日 14:10</span>
-            </div>
-          </div>
+          <div class="font-semibold">🔄 额度刷新时间</div>
+          <p class="text-[10px]" style="color: var(--text-muted)">查看各窗口的下次刷新。</p>
+          <div class="space-y-1.5 pt-1 text-[11px]" id="resets-list">暂无刷新时间</div>
         </section>
       </div>
 
@@ -512,7 +456,8 @@
   <script>
     let RAW_CONVERSATIONS = [];
     let RAW_DAILY = [];
-    let RAW_BY_MODEL = {};
+    let RAW_BY_MODEL = [];
+    let RAW_TOTALS = null;
 
     const HEAT_COLORS = [
       'rgba(128,128,128,.16)',
@@ -532,7 +477,8 @@
     function formatResetTime(isoStr) {
       if (!isoStr) return '';
       const diff = new Date(isoStr).getTime() - Date.now();
-      if (diff <= 0) return '即将重置';
+      if (!Number.isFinite(diff)) return '暂无刷新时间';
+      if (diff <= 0) return '等待额度更新';
       const hours = Math.floor(diff / 3600000);
       const mins = Math.floor((diff % 3600000) / 60000);
       if (hours >= 24) {
@@ -543,45 +489,29 @@
       return `${hours}小时${mins}分`;
     }
 
-    // 动态 Token 预算反推计算器
-    function calcQuotaProjection(frac, windowType) {
-      const remaining = Math.max(0, Math.min(1, frac));
-      const used = 1 - remaining;
 
-      const todayStr = new Date().toISOString().slice(0, 10);
-      const todayItem = RAW_DAILY.find(d => d.date === todayStr);
+    function dayKey(date) {
+      return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+    }
 
-      let todayTok = 0;
-      let todayGens = 0;
-      if (todayItem) {
-        const t = todayItem.tokens || {};
-        todayTok = (t.input || 0) + (t.output || 0) + (t.cacheRead || 0);
-        todayGens = todayItem.genCalls || 0;
+    let estimateAt = 0;
+    async function loadQuotaEstimates(force = false) {
+      if (!force && Date.now() - estimateAt < 30_000) return;
+      estimateAt = Date.now();
+      let estimates = {};
+      try {
+        const res = await fetch('/api/quota-estimates', { signal: AbortSignal.timeout(12000) });
+        if (res.ok) estimates = (await res.json()).estimates || {};
+      } catch {}
+      for (const el of document.querySelectorAll('[data-quota-estimate]')) {
+        const sample = estimates[el.dataset.quotaEstimate];
+        el.textContent = sample ? `估算总量 ≈ ${fmtNum(sample.capacity)} · 剩余 ≈ ${fmtNum(sample.remaining)} Token` : 'Token 参考 · 样本不足';
+        el.title = sample ? `${sample.source === 'recent' ? '近期' : '本周期'}本地样本，含缓存读取` : '';
       }
+    }
 
-      let cap = windowType === '5h' ? 104e6 : 623e6;
-      let calls = 0;
-
-      if (used >= 0.005 && todayTok > 0) {
-        cap = todayTok / used;
-        if (todayGens > 0) {
-          calls = Math.round(todayGens * (remaining / used));
-        }
-      } else {
-        calls = Math.round((cap * remaining) / 110000);
-      }
-
-      const remTok = cap * remaining;
-      const usedTok = cap * used;
-
-      return {
-        remPct: (remaining * 100).toFixed(1) + '%',
-        usedPct: (used * 100).toFixed(1) + '%',
-        remTokStr: fmtNum(remTok),
-        capStr: fmtNum(cap),
-        usedTokStr: fmtNum(usedTok),
-        remCalls: calls
-      };
+    function quotaPercent(frac) {
+      return typeof frac === 'number' && frac >= 0 && frac <= 1 ? (frac * 100).toFixed(1) + '%' : '—';
     }
 
     // 1. 标签页切换逻辑
@@ -596,87 +526,119 @@
         const targetId = btn.getAttribute('data-tab');
         const target = document.getElementById(targetId);
         if (target) target.classList.add('active');
+        if (targetId === 'tab-trend') loadTrend();
       });
     });
 
     // 2. 全局时间过滤 Filter 切换逻辑
     const filterBtns = document.querySelectorAll('.filter-btn');
     let currentFilterDays = 'all';
+    let customStartDate = '';
+    let customEndDate = '';
 
     filterBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         filterBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentFilterDays = btn.getAttribute('data-days');
+        customStartDate = '';
+        customEndDate = '';
+        const sEl = document.getElementById('index-start-date');
+        const eEl = document.getElementById('index-end-date');
+        if (sEl) sEl.value = '';
+        if (eEl) eEl.value = '';
         applyFilter(currentFilterDays);
       });
     });
 
+    document.getElementById('index-date-apply')?.addEventListener('click', () => {
+      let s = document.getElementById('index-start-date')?.value || '';
+      let e = document.getElementById('index-end-date')?.value || '';
+      if (s && e && s > e) [s, e] = [e, s];
+      customStartDate = s;
+      customEndDate = e;
+      filterBtns.forEach(b => b.classList.remove('active'));
+      applyFilter('custom');
+    });
+
+    document.getElementById('index-date-reset')?.addEventListener('click', () => {
+      customStartDate = '';
+      customEndDate = '';
+      const sEl = document.getElementById('index-start-date');
+      const eEl = document.getElementById('index-end-date');
+      if (sEl) sEl.value = '';
+      if (eEl) eEl.value = '';
+      filterBtns.forEach(b => b.classList.toggle('active', b.getAttribute('data-days') === 'all'));
+      currentFilterDays = 'all';
+      applyFilter('all');
+    });
+
     function applyFilter(days) {
-      let filteredConvs = RAW_CONVERSATIONS;
-      if (days !== 'all') {
-        const d = Number(days);
-        const cutoff = d === 0 ? new Date().setHours(0,0,0,0) : Date.now() - d * 86400000;
-        filteredConvs = RAW_CONVERSATIONS.filter(c => {
-          const t = c.lastModified || c.lastInput || 0;
-          return t >= cutoff;
-        });
+      let startStr = '';
+      let endStr = '';
+      if (days === 'custom') {
+        startStr = customStartDate;
+        endStr = customEndDate;
+      } else if (days !== 'all') {
+        const start = new Date();
+        start.setDate(start.getDate() - Math.max(0, Number(days) - 1));
+        startStr = dayKey(start);
+        endStr = dayKey(new Date());
       }
+      const inRange = (d) => {
+        if (!d) return false;
+        if (startStr && d < startStr) return false;
+        if (endStr && d > endStr) return false;
+        return true;
+      };
+      const hasFilter = Boolean(startStr || endStr);
+      const daily = hasFilter ? RAW_DAILY.filter(d => inRange(d.date)) : RAW_DAILY;
+      const filteredConvs = hasFilter ? RAW_CONVERSATIONS.flatMap(c => {
+        const entries = Object.entries(c.dailyTokens || {}).filter(([date]) => inRange(date));
+        if (!entries.length) return [];
+        const tokens = { input: 0, cacheRead: 0, output: 0 };
+        let steps = 0, genCalls = 0;
+        const models = new Set();
+        for (const [date, t] of entries) {
+          for (const key of Object.keys(tokens)) tokens[key] += t[key] || 0;
+          steps += t.steps || 0;
+          genCalls += t.genCalls || 0;
+          for (const model of Object.keys(c.dailyModelTokens?.[date] || {})) models.add(model);
+        }
+        return [{ ...c, tokens, steps, genCalls, models: [...models] }];
+      }) : RAW_CONVERSATIONS;
 
-      let totalInput = 0, totalOutput = 0, totalCache = 0, totalSteps = 0, totalGens = 0, thinking = 0, response = 0;
-      filteredConvs.forEach(c => {
-        totalSteps += (c.steps || 0);
-        totalGens += (c.genCalls || 0);
-        const t = c.tokens || {};
-        totalInput += (t.input || 0);
-        totalOutput += (t.output || 0);
-        totalCache += (t.cacheRead || 0);
-        thinking += (t.thinking || 0);
-        response += (t.response || 0);
-      });
-
-      const totalTokens = totalInput + totalOutput + totalCache;
-      const totalInAll = totalInput + totalCache;
-      const hitRate = totalInAll > 0 ? ((totalCache / totalInAll) * 100).toFixed(1) : '0';
-
-      document.getElementById('kpi-total-token').textContent = fmtNum(totalTokens);
-      document.getElementById('sub-in').textContent = '输入 ' + fmtNum(totalInput);
-      document.getElementById('sub-cache').textContent = '命中 ' + fmtNum(totalCache);
-
-      if (totalTokens > 0) {
-        document.getElementById('bar-in').style.width = ((totalInput / totalTokens) * 100).toFixed(1) + '%';
-        document.getElementById('bar-cache').style.width = ((totalCache / totalTokens) * 100).toFixed(1) + '%';
-        document.getElementById('bar-out').style.width = ((totalOutput / totalTokens) * 100).toFixed(1) + '%';
+      const stats = { input: 0, output: 0, cacheRead: 0, thinking: 0, response: 0 };
+      let steps = 0, calls = 0;
+      for (const d of daily) {
+        steps += d.steps || 0;
+        calls += d.genCalls || 0;
+        for (const key of Object.keys(stats)) stats[key] += d.tokens?.[key] || 0;
       }
-
-      document.getElementById('kpi-hit-rate').textContent = hitRate + '%';
-      document.getElementById('kpi-hit-sub').textContent = `命中 ${fmtNum(totalCache)} / 未命 ${fmtNum(totalInput)}`;
-
-      document.getElementById('kpi-gens').textContent = fmtNum(totalGens);
-      document.getElementById('kpi-active-days').textContent = days === 'all' ? '全部历史 ' + RAW_DAILY.length + ' 天有活动' : '周期内活动统计';
-
-      document.getElementById('kpi-output').textContent = fmtNum(totalOutput);
-      document.getElementById('kpi-out-sub').textContent = `思考 ${fmtNum(thinking)} · 回复 ${fmtNum(response)}`;
-
-      document.getElementById('kpi-sessions').textContent = filteredConvs.length;
-      document.getElementById('kpi-steps').textContent = `共 ${fmtNum(totalSteps)} 步`;
-
-      const searchVal = document.getElementById('session-search')?.value || '';
-      renderSessions(searchVal, filteredConvs);
+      const all = cutoff ? null : RAW_TOTALS;
+      const { input, output, cacheRead, thinking, response } = all?.tokens || stats;
+      const totalTokens = input + output + cacheRead;
+      const totalInput = input + cacheRead;
+      const set = (id, value) => { document.getElementById(id).textContent = value; };
+      set('kpi-total-token', fmtNum(totalTokens));
+      set('sub-in', '未命中 ' + fmtNum(input));
+      set('sub-cache', '缓存读取 ' + fmtNum(cacheRead));
+      for (const [id, value] of [['in', input], ['cache', cacheRead], ['out', output]]) {
+        document.getElementById('bar-' + id).style.width = (100 * value / Math.max(1, totalTokens)).toFixed(1) + '%';
+      }
+      set('kpi-hit-rate', totalInput ? (100 * cacheRead / totalInput).toFixed(1) + '%' : '—');
+      set('kpi-hit-sub', '缓存读取占全部输入的比例');
+      set('kpi-gens', fmtNum(all?.genCalls ?? calls));
+      set('kpi-active-days', `${daily.length} 天有活动`);
+      set('kpi-output', fmtNum(output));
+      set('kpi-out-sub', `思考 ${fmtNum(thinking)} · 回复 ${fmtNum(response)}`);
+      const limited = cutoff && RAW_TOTALS?.sessions > RAW_CONVERSATIONS.length;
+      set('kpi-sessions', (limited ? '≥ ' : '') + (all?.sessions ?? filteredConvs.length));
+      set('kpi-steps', `共 ${fmtNum(all?.steps ?? steps)} 步`);
+      renderSessions(document.getElementById('session-search')?.value || '', filteredConvs);
     }
 
     // 3. 热力图渲染
-    let currentHeatMetric = 'sessions';
-    const heatMetricBtns = document.querySelectorAll('#heat-metrics .metric-btn');
-    heatMetricBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        heatMetricBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentHeatMetric = btn.getAttribute('data-m');
-        renderHeatmap();
-      });
-    });
-
     function renderHeatmap() {
       const container = document.getElementById('heatmap-grid');
       if (!container) return;
@@ -693,24 +655,18 @@
 
       const cells = [];
       for (let d = new Date(start.getTime()); d.getTime() <= today.getTime(); d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().slice(0, 10);
+        const dateStr = dayKey(d);
         cells.push({ date: dateStr, ms: d.getTime() });
       }
 
       const values = cells.map(c => {
-        const item = dailyMap[c.date];
-        if (!item) return 0;
-        if (currentHeatMetric === 'steps') return item.steps || 0;
-        if (currentHeatMetric === 'tokens') return ((item.tokens?.input || 0) + (item.tokens?.output || 0));
-        if (currentHeatMetric === 'cache') return item.tokens?.cacheRead || 0;
-        return item.sessions || 0;
+        const t = dailyMap[c.date]?.tokens;
+        return (t?.input || 0) + (t?.output || 0) + (t?.cacheRead || 0);
       });
+      const maxVal = Math.max(0, ...values);
+      document.getElementById('heat-peak').textContent = `近 182 天 · 峰值 ${fmtNum(maxVal)} Token`;
 
-      const maxVal = values.reduce((m, v) => Math.max(m, v), 0);
-      const unit = currentHeatMetric === 'steps' ? ' 步' : (currentHeatMetric === 'sessions' ? ' 个会话' : ' token');
-      document.getElementById('heat-peak').textContent = `近 182 天 · 峰值 ${fmtNum(maxVal)}${unit}`;
-
-      const todayStr = today.toISOString().slice(0, 10);
+      const todayStr = dayKey(today);
 
       cells.forEach((c, i) => {
         const v = values[i];
@@ -727,7 +683,8 @@
         }
 
         cell.style.background = color;
-        cell.title = `${c.date}: ${fmtNum(v)}${unit}`;
+        const day = dailyMap[c.date];
+        cell.title = `${c.date}\n${day?.sessions || 0} 个会话 · ${day?.steps || 0} 步\n总 Token ${v.toLocaleString()}\n缓存读取 ${(day?.tokens?.cacheRead || 0).toLocaleString()}`;
         container.appendChild(cell);
       });
     }
@@ -815,82 +772,67 @@
       }).join('');
     }
 
-    // 5. 实时动态同步与反推更新逻辑
-    function updateQuotaUI(quotaData) {
-      if (!quotaData || !quotaData.groups) return;
-      if (quotaData.port) {
-        const portEl = document.getElementById('ls-port-label');
-        if (portEl) portEl.textContent = quotaData.port;
-      }
-
-      for (const group of quotaData.groups) {
-        if (group.displayName?.includes('Gemini')) {
-          for (const b of group.buckets || []) {
-            const frac = b.remainingFraction ?? 1;
-            const resetStr = formatResetTime(b.resetTime);
-            const proj = calcQuotaProjection(frac, b.window);
-
-            if (b.bucketId === 'gemini-weekly') {
-              const elVal = document.getElementById('gemini-weekly-val');
-              const elBar = document.getElementById('gemini-weekly-bar');
-              const elReset = document.getElementById('gemini-weekly-reset');
-              const elUsed = document.getElementById('gemini-weekly-used');
-              const elRemTok = document.getElementById('gemini-weekly-rem-tok');
-              const elCalls = document.getElementById('gemini-weekly-calls-est');
-              const elCap = document.getElementById('gemini-weekly-cap');
-
-              if (elVal) elVal.textContent = proj.remPct;
-              if (elBar) elBar.style.width = proj.remPct;
-              if (elRemTok) elRemTok.textContent = proj.remTokStr;
-              if (elCalls) elCalls.textContent = `≈ 还能调用 ${proj.remCalls.toLocaleString()} 次`;
-              if (elCap) elCap.textContent = `周总预算 ≈ ${proj.capStr}`;
-              if (elReset && resetStr) elReset.textContent = '重置: ' + resetStr;
-              if (elUsed) elUsed.textContent = '已用: ' + proj.usedPct;
-
-              const trendWeekly = document.getElementById('trend-label-weekly');
-              if (trendWeekly) trendWeekly.textContent = `● 周配额 (${proj.remPct})`;
-
-            } else if (b.bucketId === 'gemini-5h') {
-              const elVal = document.getElementById('gemini-5h-val');
-              const elBar = document.getElementById('gemini-5h-bar');
-              const elReset = document.getElementById('gemini-5h-reset');
-              const elUsed = document.getElementById('gemini-5h-used');
-              const elRemTok = document.getElementById('gemini-5h-rem-tok');
-              const elCalls = document.getElementById('gemini-5h-calls-est');
-              const elCap = document.getElementById('gemini-5h-cap');
-
-              if (elVal) elVal.textContent = proj.remPct;
-              if (elBar) elBar.style.width = proj.remPct;
-              if (elRemTok) elRemTok.textContent = proj.remTokStr;
-              if (elCalls) elCalls.textContent = `≈ 还能调用 ${proj.remCalls.toLocaleString()} 次`;
-              if (elCap) elCap.textContent = `5h预算容量 ≈ ${proj.capStr}`;
-              if (elReset && resetStr) elReset.textContent = '重置: ' + resetStr;
-              if (elUsed) elUsed.textContent = '已用: ' + proj.usedPct;
-
-              const trend5h = document.getElementById('trend-label-5h');
-              if (trend5h) trend5h.textContent = `● 5小时滚动 (${proj.remPct})`;
-
-              const m38 = document.getElementById('m-gemini-38');
-              const m37 = document.getElementById('m-gemini-37');
-              const m31 = document.getElementById('m-gemini-31');
-              if (m38) m38.innerHTML = `${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~${proj.remTokStr})</span>`;
-              if (m37) m37.innerHTML = `${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~${proj.remTokStr})</span>`;
-              if (m31) m31.innerHTML = `${proj.remPct} <span class="text-[10px] font-normal opacity-80">(~${proj.remTokStr})</span>`;
-            }
-          }
+    function updateQuotaUI(data) {
+      if (!data?.groups) return;
+      document.getElementById('ls-port-label').textContent = data.port || '—';
+      document.getElementById('account-name-label').textContent = data.account?.planName || '当前账号';
+      const buckets = data.groups.flatMap(g => g.buckets || []);
+      const fields = { 'gemini-weekly': 'gemini-weekly', 'gemini-5h': 'gemini-5h', '3p-weekly': 'claude-weekly', '3p-5h': 'claude-5h' };
+      const resets = document.getElementById('resets-list');
+      resets.replaceChildren();
+      for (const [id, field] of Object.entries(fields)) {
+        const bucket = buckets.find(b => b.bucketId === id);
+        const percent = quotaPercent(bucket?.remainingFraction);
+        document.getElementById(field + '-val').textContent = percent;
+        const meter = document.getElementById(field + '-bar');
+        if (meter) meter.style.width = percent === '—' ? '0%' : percent;
+        const reset = document.getElementById(field + '-reset');
+        const label = bucket?.remainingFraction === 1 ? '额度充足' : (formatResetTime(bucket?.resetTime) || '暂无刷新时间');
+        if (reset) reset.textContent = label;
+        if (bucket) {
+          const row = document.createElement('p');
+          row.textContent = `${id.startsWith('gemini') ? 'Gemini' : 'Claude / GPT'} · ${bucket.window === '5h' ? '5 小时' : '每周'} · ${label}`;
+          resets.append(row);
         }
       }
+      if (!resets.childElementCount) resets.textContent = '暂无刷新时间';
+    }
+
+    async function loadTrend() {
+      try {
+        const res = await fetch('/api/history?range=24h', { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) return;
+        const data = await res.json();
+        for (const [id, bucket] of [['weekly', 'gemini-weekly'], ['5h', 'gemini-5h']]) {
+          const points = data.points || [];
+          const first = points[0]?.t;
+          const last = points.at(-1)?.t;
+          let path = '';
+          let continuing = false;
+          for (const point of points) {
+            const value = point.values?.[bucket];
+            if (quotaPercent(value) === '—') { continuing = false; continue; }
+            const x = 30 + 450 * (point.t - first) / Math.max(1, last - first);
+            const y = 140 - value * 120;
+            path += `${continuing ? ' L' : ' M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+            continuing = true;
+          }
+          document.getElementById('trend-line-' + id).setAttribute('d', path);
+          document.getElementById('trend-label-' + id).textContent = (id === '5h' ? 'Gemini 5 小时' : 'Gemini 每周') + ' · ' + quotaPercent(points.at(-1)?.values?.[bucket]);
+        }
+      } catch {}
     }
 
     function handleFullUpdate(allData) {
       if (allData.quota) updateQuotaUI(allData.quota);
-      if (allData.conversations) {
+      if (allData.conversations?.ok) {
         const c = allData.conversations;
         RAW_CONVERSATIONS = c.conversations || [];
         RAW_DAILY = Object.values(c.byDay || {});
-        RAW_BY_MODEL = c.byModel || {};
+        RAW_BY_MODEL = c.byModel || [];
+        RAW_TOTALS = c.totals || null;
 
-        document.getElementById('sum-sessions').textContent = RAW_CONVERSATIONS.length;
+        document.getElementById('sum-sessions').textContent = c.totals?.sessions ?? RAW_CONVERSATIONS.length;
         document.getElementById('sum-steps').textContent = fmtNum(c.totals?.steps || 0);
         document.getElementById('sum-gens').textContent = fmtNum(c.totals?.genCalls || 0);
         document.getElementById('sum-models').textContent = Object.keys(RAW_BY_MODEL).length + ' 种';
@@ -938,6 +880,8 @@
     }
 
     initDashboard();
+    loadQuotaEstimates();
+    setInterval(loadQuotaEstimates, 30000);
 
     // 启动 3 秒高频实时轮询
     setInterval(pollLiveQuota, 3000);
@@ -945,6 +889,7 @@
     document.getElementById('refresh-btn')?.addEventListener('click', async () => {
       const btn = document.getElementById('refresh-btn');
       btn.classList.add('animate-spin');
+      loadQuotaEstimates(true);
       try {
         const res = await fetch('http://127.0.0.1:19388/api/all');
         if (res.ok) {
