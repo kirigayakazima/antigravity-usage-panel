@@ -4,7 +4,10 @@
     document.addEventListener('DOMContentLoaded', initAntigravityQuotaInjection, { once: true });
     return;
   }
-  if (document.getElementById('agy-usage-style')) return;
+  // 1. 清理旧实例 (支持无缝热重载与重新注入)
+  try {
+    document.querySelectorAll('#agy-popup-card, #agy-quota-capsule-root, #agy-inpage-modal-overlay, #agy-usage-style').forEach(el => el.remove());
+  } catch (e) {}
 
   const styleEl = document.createElement('style');
   styleEl.id = 'agy-usage-style';
@@ -499,16 +502,8 @@
         </div>
       </div>
 
-      <!-- 标签页导航 -->
-      <div class="au-tabs" id="au-nav-tabs">
-        <button class="au-tab on" data-tab="tab-quota">额度</button>
-        <button class="au-tab" data-tab="tab-summary">用量</button>
-        <button class="au-tab" data-tab="tab-trend">额度趋势</button>
-        <button class="au-tab" data-tab="tab-heatmap">活动日历</button>
-        <button class="au-tab" data-tab="tab-conv">会话</button>
-      </div>
-
-      <div class="au-range-bar">
+      <!-- 顶栏时间范围与自定义日期 Filter (全局置顶) -->
+      <div class="au-range-bar" id="au-top-range-bar">
         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
           <div class="au-btn-group" id="kpi-range-group">
             <button class="au-btn on" data-days="1">今天</button>
@@ -528,6 +523,15 @@
           </div>
         </div>
         <span id="kpi-range-hint">按本地日期统计</span>
+      </div>
+
+      <!-- 标签页导航 -->
+      <div class="au-tabs" id="au-nav-tabs">
+        <button class="au-tab on" data-tab="tab-quota">额度</button>
+        <button class="au-tab" data-tab="tab-summary">用量</button>
+        <button class="au-tab" data-tab="tab-trend">额度趋势</button>
+        <button class="au-tab" data-tab="tab-heatmap">活动日历</button>
+        <button class="au-tab" data-tab="tab-conv">会话</button>
       </div>
 
       <!-- 主体内容 -->
@@ -1828,7 +1832,6 @@
       if (pane) pane.classList.add('on');
 
       activeTab = targetId;
-      modalOverlay.querySelector('.au-range-bar').hidden = !['tab-quota', 'tab-summary', 'tab-conv'].includes(targetId);
       modalOverlay.querySelector('.au-body').scrollTop = 0;
       refreshTab(targetId);
     });
