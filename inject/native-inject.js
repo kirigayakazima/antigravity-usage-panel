@@ -452,6 +452,25 @@
     .au-period-kpi-val { font-size: 16px; font-weight: 700; margin: 2px 0; display: block; font-variant-numeric: tabular-nums; }
     .au-period-kpi-sub { color: var(--au-text-muted); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
     .au-group-period-usage { font-size: 11px; color: var(--au-text-muted); margin: -4px 0 10px; display: flex; justify-content: space-between; align-items: center; }
+    .au-acct-switcher { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .au-acct-pill {
+      display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 10px;
+      border: 1px solid var(--au-border-l1); background: var(--au-bg); color: var(--au-text-main);
+      font-size: 12px; cursor: pointer; transition: all 0.15s ease; font-family: inherit;
+    }
+    .au-acct-pill:hover { border-color: var(--au-brand); background: var(--au-bg-layer-1); }
+    .au-acct-pill.on { border-color: var(--au-brand); background: color-mix(in srgb, var(--au-brand) 10%, var(--au-bg)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--au-brand) 30%, transparent); }
+    .au-acct-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--au-text-muted); }
+    .au-acct-dot.online { background: var(--au-emerald); box-shadow: 0 0 0 2px color-mix(in srgb, var(--au-emerald) 25%, transparent); }
+    .au-acct-badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--au-bg-layer-2); color: var(--au-text-muted); font-weight: 600; }
+    .au-acct-badge.reset { background: color-mix(in srgb, var(--au-emerald) 15%, transparent); color: var(--au-emerald); }
+    .au-acct-banner {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      padding: 9px 12px; margin-bottom: 14px; border-radius: 10px; font-size: 11.5px;
+      background: color-mix(in srgb, var(--au-orange) 10%, var(--au-bg));
+      border: 1px solid color-mix(in srgb, var(--au-orange) 35%, transparent); color: var(--au-text-main);
+    }
+    .au-acct-banner[hidden] { display: none; }
     .au-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 14px; }
     #kpi-card-total { grid-column: span 4; }
     #kpi-card-total .au-kpi-value { font-size: 30px; }
@@ -582,6 +601,16 @@
               </div>
             </div>
           </div>
+          <!-- 多账户切换与状态对比栏 -->
+          <div id="quota-accounts-bar" class="au-acct-switcher" hidden></div>
+          <div id="quota-offline-banner" class="au-acct-banner" hidden>
+            <span id="quota-offline-text">正在查看离线账户快照</span>
+            <div style="display: flex; gap: 6px;">
+              <button id="quota-back-active-btn" class="au-btn" style="padding: 2px 8px; font-size: 11px;">切回当前登录账户</button>
+              <button id="quota-remove-acct-btn" class="au-btn" style="padding: 2px 8px; font-size: 11px; color: var(--au-red);">移除记录</button>
+            </div>
+          </div>
+
           <div id="quota-groups-container" class="au-quota-groups"><p class="au-empty">正在读取额度…</p></div>
           <p class="au-caption au-quota-note">Token 参考按本地调用折算，包含缓存读取。同样的模型和缓存比例下更有参考价值。</p>
           <details class="au-account">
@@ -604,6 +633,9 @@
               <button class="au-btn" data-range="30d">30 天</button>
               <button class="au-btn" data-range="all">全部</button>
             </div>
+            <select id="trend-account-select" class="au-date-input" title="按账户筛选趋势">
+              <option value="">全部账户</option>
+            </select>
             <span class="au-spacer"></span>
             <span style="font-size: 11px; color: var(--au-text-muted)" id="trend-summary-info">正在读取历史采样...</span>
           </div>
@@ -780,6 +812,9 @@
   // 5. 数据状态中心
   let RAW_QUOTA = null;
   let RAW_ESTIMATES = {};
+  let RAW_ACCOUNTS = [];
+  let ACTIVE_ACCOUNT_EMAIL = '';
+  let VIEW_ACCOUNT_EMAIL = '';
   let estimatesLoading = true;
   let RAW_CONVERSATIONS = [];
   let RAW_DAILY = [];
@@ -791,6 +826,7 @@
   let SELECTED_WS_FILTER = '';
   let SEARCH_QUERY = '';
   let SELECTED_TREND_RANGE = '24h';
+  let TREND_ACCOUNT_EMAIL = '';
 
   // 6. 辅助计算工具 (完全对齐 DSH 官方规范)
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -881,8 +917,13 @@
   let usageLoaded = false;
   let usageFailed = false;
 
-  function estimateMarkup(bucket) {
-    const estimate = RAW_ESTIMATES[bucket.bucketId];
+  function isBucketResetExpired(bucket) {
+    const at = Date.parse(bucket?.resetTime);
+    return Number.isFinite(at) && Date.now() >= at;
+  }
+
+  function estimateMarkup(bucket, estimatesMap = RAW_ESTIMATES) {
+    const estimate = (estimatesMap || {})[bucket.bucketId];
     if (!estimate) {
       return `<div class="au-estimate au-estimate-empty">${estimatesLoading ? '正在计算 Token 参考…' : 'Token 参考 · 样本不足'}</div>`;
     }
@@ -1007,18 +1048,105 @@
     };
   }
 
+  function getEffectiveAccounts() {
+    const activeEmail = ACTIVE_ACCOUNT_EMAIL || RAW_QUOTA?.account?.email || '';
+    const list = Array.isArray(RAW_ACCOUNTS) ? [...RAW_ACCOUNTS] : [];
+    if (activeEmail && !list.some(a => a.email === activeEmail)) {
+      list.unshift({
+        email: activeEmail,
+        name: RAW_QUOTA?.account?.name || '',
+        tier: RAW_QUOTA?.account?.tier || '',
+        planName: RAW_QUOTA?.account?.planName || '',
+        credits: RAW_QUOTA?.credits || null,
+        groups: RAW_QUOTA?.groups || [],
+        estimates: RAW_ESTIMATES || {},
+        lastSeenAt: RAW_QUOTA?.timestamp || Date.now(),
+        port: RAW_QUOTA?.port || null,
+        isActive: true
+      });
+    }
+    return list.map(a => ({ ...a, isActive: Boolean(activeEmail && a.email === activeEmail) }));
+  }
+
+  function accountStatusBadge(acct) {
+    if (acct.isActive) return '<span class="au-acct-badge">当前在线</span>';
+    const buckets = (acct.groups || []).flatMap(g => g.buckets || []);
+    const fractions = buckets.map(b => quotaFraction(b)).filter(v => v !== null);
+    const allReset = buckets.length > 0 && buckets.every(b => quotaFraction(b) === 1 || isBucketResetExpired(b));
+    if (allReset) return '<span class="au-acct-badge reset">预计已重置</span>';
+    if (fractions.length > 0) {
+      const minV = Math.min(...fractions);
+      return `<span class="au-acct-badge">上次 ${pct(minV, 0)}</span>`;
+    }
+    return '<span class="au-acct-badge">离线缓存</span>';
+  }
+
   function renderQuotaTab() {
     const q = RAW_QUOTA;
-    const groups = (q?.groups || []).filter(group => group.buckets?.length);
+    const accounts = getEffectiveAccounts();
+    const activeEmail = ACTIVE_ACCOUNT_EMAIL || q?.account?.email || '';
+    let selectedEmail = VIEW_ACCOUNT_EMAIL;
+    if (!selectedEmail || !accounts.some(a => a.email === selectedEmail)) {
+      selectedEmail = activeEmail || accounts[0]?.email || '';
+    }
+    const viewedAccount = accounts.find(a => a.email === selectedEmail) || null;
+    const isViewingActive = !viewedAccount || viewedAccount.isActive || !activeEmail || viewedAccount.email === activeEmail;
+
+    const acctBar = modalOverlay.querySelector('#quota-accounts-bar');
+    if (acctBar) {
+      acctBar.hidden = accounts.length === 0;
+      acctBar.innerHTML = accounts.map(acct => `
+        <button type="button" class="au-acct-pill${acct.email === selectedEmail ? ' on' : ''}" data-email="${escapeHTML(acct.email)}" title="${acct.isActive ? '当前客户端登录账号' : '点击查看该账号离线额度快照'}">
+          <span class="au-acct-dot${acct.isActive ? ' online' : ''}"></span>
+          <span>${escapeHTML(acct.email)}</span>
+          ${accountStatusBadge(acct)}
+        </button>
+      `).join('');
+      acctBar.querySelectorAll('.au-acct-pill').forEach(btn => {
+        btn.addEventListener('click', () => {
+          VIEW_ACCOUNT_EMAIL = btn.getAttribute('data-email') || '';
+          renderQuotaTab();
+        });
+      });
+    }
+
+    const offlineBanner = modalOverlay.querySelector('#quota-offline-banner');
+    if (offlineBanner) {
+      const showOffline = Boolean(viewedAccount && !isViewingActive);
+      offlineBanner.hidden = !showOffline;
+      if (showOffline) {
+        const textEl = modalOverlay.querySelector('#quota-offline-text');
+        if (textEl) {
+          textEl.textContent = `正在查看 ${viewedAccount.email} 的离线快照（最后同步于 ${fmtTime(viewedAccount.lastSeenAt)}）· 如需在客户端登录此账号，请点左下角头像 → Account → Sign Out`;
+        }
+        const removeBtn = modalOverlay.querySelector('#quota-remove-acct-btn');
+        if (removeBtn) removeBtn.dataset.email = viewedAccount.email;
+      }
+    }
+
+    const activeGroups = (q?.groups || []).filter(group => group.buckets?.length);
+    const groups = isViewingActive
+      ? activeGroups
+      : ((viewedAccount?.groups || []).filter(group => group.buckets?.length));
+    const estimatesMap = isViewingActive ? RAW_ESTIMATES : (viewedAccount?.estimates || {});
+
     const cached = quotaFailed || (q && Date.now() - q.timestamp > 30_000);
     const status = modalOverlay.querySelector('#ls-status-pill');
-    status.textContent = groups.length ? (cached ? '缓存数据' : '已连接') : (quotaLoading ? '连接中' : '额度不可用');
-    status.dataset.state = groups.length && !cached ? 'online' : 'idle';
-    modalOverlay.querySelector('#acct-time').textContent = q?.timestamp ? `更新于 ${fmtTime(q.timestamp)}` : '';
-    modalOverlay.querySelector('#ls-port-badge').textContent = q?.port ? `127.0.0.1:${q.port}` : '—';
-    modalOverlay.querySelector('#acct-email').textContent = q?.account?.email || '—';
-    modalOverlay.querySelector('#acct-name').textContent = q?.account?.planName || q?.account?.tier || '—';
-    const credits = q?.credits;
+    status.textContent = activeGroups.length ? (cached ? '缓存数据' : '已连接') : (quotaLoading ? '连接中' : '额度不可用');
+    status.dataset.state = activeGroups.length && !cached ? 'online' : 'idle';
+
+    const displayTime = isViewingActive ? q?.timestamp : viewedAccount?.lastSeenAt;
+    const displayPort = isViewingActive ? q?.port : viewedAccount?.port;
+    const displayEmail = isViewingActive ? (q?.account?.email || viewedAccount?.email) : viewedAccount?.email;
+    const displayPlan = isViewingActive ? (q?.account?.planName || q?.account?.tier) : (viewedAccount?.planName || viewedAccount?.tier);
+    const credits = isViewingActive ? q?.credits : viewedAccount?.credits;
+
+    modalOverlay.querySelector('#acct-time').textContent = displayTime
+      ? `${isViewingActive ? '更新于' : '快照于'} ${fmtTime(displayTime)}`
+      : '';
+    modalOverlay.querySelector('#ls-port-badge').textContent = displayPort ? `127.0.0.1:${displayPort}` : '—';
+    modalOverlay.querySelector('#acct-email').textContent = displayEmail || '—';
+    modalOverlay.querySelector('#acct-name').textContent = displayPlan || '—';
     modalOverlay.querySelector('#acct-credits').textContent = credits?.promptAvailable == null ? '—' :
       `${credits.promptAvailable}${credits.promptMonthly == null ? '' : ' / ' + credits.promptMonthly}`;
 
@@ -1062,20 +1190,26 @@
             <span>${fmtFull(gCalls)} 次调用</span>
           </div>
           ${windows.map(bucket => {
-            const v = quotaFraction(bucket);
+            const rawV = quotaFraction(bucket);
+            const expiredOffline = !isViewingActive && rawV !== null && rawV < 1 && isBucketResetExpired(bucket);
+            const displayV = expiredOffline ? 1 : rawV;
             const label = escapeHTML(quotaWindow(bucket));
-            const color = v === null ? 'var(--au-text-muted)' : remainingColor(v);
+            const color = displayV === null ? 'var(--au-text-muted)' : remainingColor(displayV);
+            const leftStatus = displayV === null
+              ? '暂无比例'
+              : (expiredOffline ? `预计已重置 (上次 ${pct(rawV)})` : (isViewingActive ? '剩余' : '上次剩余'));
+            const rightStatus = expiredOffline ? `已过 ${fmtTime(Date.parse(bucket.resetTime))}` : resetLabel(bucket);
             return `
               <div class="au-quota-window">
                 <div class="au-bucket-head">
                   <span class="au-bucket-label">${label}</span>
-                  <span class="au-bucket-pct" style="color:${color}">${v === null ? '—' : pct(v)}</span>
+                  <span class="au-bucket-pct" style="color:${color}">${displayV === null ? '—' : pct(displayV)}</span>
                 </div>
-                <div class="au-bar" ${v === null ? 'aria-hidden="true"' : `role="meter" aria-label="${title} ${label}剩余" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v * 100}"`}>
-                  <div class="au-bar-fill" style="width:${(v ?? 0) * 100}%;background:${color}"></div>
+                <div class="au-bar" ${displayV === null ? 'aria-hidden="true"' : `role="meter" aria-label="${title} ${label}剩余" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${displayV * 100}"`}>
+                  <div class="au-bar-fill" style="width:${(displayV ?? 0) * 100}%;background:${color}"></div>
                 </div>
-                <div class="au-quota-meta"><span>${v === null ? '暂无比例' : '剩余'}</span><span>${resetLabel(bucket)}</span></div>
-                ${estimateMarkup(bucket)}
+                <div class="au-quota-meta"><span>${leftStatus}</span><span>${rightStatus}</span></div>
+                ${estimateMarkup(bucket, estimatesMap)}
               </div>`;
           }).join('')}
         </section>`;
@@ -1105,8 +1239,9 @@
     const status = capsuleRoot.querySelector('#agy-pill-status');
     status.hidden = descriptions.length > 0 && !stale;
     status.textContent = stale ? (descriptions.length ? '缓存' : '离线') : '额度';
+    const acctEmail = RAW_QUOTA?.account?.email ? `账号: ${RAW_QUOTA.account.email}\n` : '';
     const label = descriptions.length ? descriptions.join('\n') : '打开额度与用量';
-    pillBar.title = `${label}${stale ? '\n额度暂未更新' : ''}\nAlt+Q`;
+    pillBar.title = `${acctEmail}${label}${stale ? '\n额度暂未更新' : ''}\nAlt+Q`;
     pillBar.setAttribute('aria-label', pillBar.title);
   }
 
@@ -1165,19 +1300,39 @@
     '3p-5h': '第三方速率限制 (5h)'
   };
 
+  function syncTrendAccountOptions(historyAccounts = []) {
+    const sel = modalOverlay.querySelector('#trend-account-select');
+    if (!sel) return;
+    const emails = new Set();
+    for (const a of getEffectiveAccounts()) if (a.email) emails.add(a.email);
+    for (const email of (historyAccounts || [])) if (email) emails.add(email);
+    const currentVal = TREND_ACCOUNT_EMAIL;
+    const opts = ['<option value="">全部账户</option>'];
+    for (const email of emails) {
+      const label = email === (ACTIVE_ACCOUNT_EMAIL || RAW_QUOTA?.account?.email) ? `${email} (当前)` : email;
+      opts.push(`<option value="${escapeHTML(email)}">${escapeHTML(label)}</option>`);
+    }
+    sel.innerHTML = opts.join('');
+    sel.value = emails.has(currentVal) ? currentVal : '';
+  }
+
   async function fetchTrendData(range) {
     if (range) SELECTED_TREND_RANGE = range;
     const requestedRange = SELECTED_TREND_RANGE;
+    const requestedAcct = TREND_ACCOUNT_EMAIL;
     const summaryInfo = modalOverlay.querySelector('#trend-summary-info');
     if (summaryInfo) summaryInfo.textContent = '正在获取历史采样点...';
 
     try {
-      const res = await fetch(`http://127.0.0.1:19388/api/history?range=${requestedRange}`, { signal: AbortSignal.timeout(5000) });
+      const qs = new URLSearchParams({ range: requestedRange });
+      if (requestedAcct) qs.set('account', requestedAcct);
+      const res = await fetch(`http://127.0.0.1:19388/api/history?${qs.toString()}`, { signal: AbortSignal.timeout(5000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (requestedRange === SELECTED_TREND_RANGE) renderTrendTab(data);
+      syncTrendAccountOptions(data.accounts);
+      if (requestedRange === SELECTED_TREND_RANGE && requestedAcct === TREND_ACCOUNT_EMAIL) renderTrendTab(data);
     } catch (e) {
-      if (requestedRange !== SELECTED_TREND_RANGE) return;
+      if (requestedRange !== SELECTED_TREND_RANGE || requestedAcct !== TREND_ACCOUNT_EMAIL) return;
       const container = modalOverlay.querySelector('#trend-chart-container');
       if (container) {
         container.innerHTML = '<p class="au-empty">暂时无法读取额度历史。</p>';
@@ -1613,6 +1768,25 @@
 
   let quotaRequest;
   let usageRequest;
+  let accountsRequest;
+
+  async function fetchAccounts() {
+    if (accountsRequest) return accountsRequest;
+    accountsRequest = (async () => {
+      try {
+        const res = await fetch('http://127.0.0.1:19388/api/accounts', { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.ok) {
+          RAW_ACCOUNTS = data.accounts || [];
+          ACTIVE_ACCOUNT_EMAIL = data.activeEmail || '';
+          syncTrendAccountOptions();
+          if (activeTab === 'tab-quota') renderQuotaTab();
+        }
+      } catch {}
+    })();
+    try { await accountsRequest; } finally { accountsRequest = null; }
+  }
 
   async function fetchQuota() {
     if (quotaRequest) return quotaRequest;
@@ -1620,7 +1794,16 @@
       try {
         const res = await fetch('http://127.0.0.1:19388/api/quota', { signal: AbortSignal.timeout(5000) });
         if (!res.ok) throw new Error('Quota unavailable');
-        RAW_QUOTA = await res.json();
+        const nextQuota = await res.json();
+        const prevActive = ACTIVE_ACCOUNT_EMAIL;
+        const nextActive = nextQuota?.account?.email || '';
+        RAW_QUOTA = nextQuota;
+        if (nextActive) {
+          ACTIVE_ACCOUNT_EMAIL = nextActive;
+          if (prevActive && prevActive !== nextActive && VIEW_ACCOUNT_EMAIL === prevActive) {
+            VIEW_ACCOUNT_EMAIL = nextActive;
+          }
+        }
         quotaFailed = false;
       } catch {
         quotaFailed = true;
@@ -1696,13 +1879,13 @@
   function refreshTab(tab) {
     if (tab === 'tab-quota') {
       renderQuotaTab();
-      return Promise.all([fetchQuota(), fetchEstimates(), fetchUsage()]);
+      return Promise.all([fetchQuota(), fetchAccounts(), fetchEstimates(), fetchUsage()]);
     }
     if (usageTabs.includes(tab)) {
       renderUsageTab(tab);
       return fetchUsage();
     }
-    return tab === 'tab-trend' ? fetchTrendData() : Promise.all([fetchQuota(), fetchEstimates()]);
+    return tab === 'tab-trend' ? fetchTrendData() : Promise.all([fetchQuota(), fetchAccounts(), fetchEstimates()]);
   }
 
   // 9. 交互事件绑定
@@ -1837,7 +2020,30 @@
     });
   });
 
-  // 趋势图范围切换
+  // 离线账户快照切回 / 移除
+  modalOverlay.querySelector('#quota-back-active-btn')?.addEventListener('click', () => {
+    VIEW_ACCOUNT_EMAIL = ACTIVE_ACCOUNT_EMAIL || RAW_QUOTA?.account?.email || '';
+    renderQuotaTab();
+  });
+  modalOverlay.querySelector('#quota-remove-acct-btn')?.addEventListener('click', async (e) => {
+    const email = e.currentTarget?.dataset?.email;
+    if (!email) return;
+    try {
+      const res = await fetch(`http://127.0.0.1:19388/api/accounts?email=${encodeURIComponent(email)}`, {
+        method: 'DELETE',
+        signal: AbortSignal.timeout(5000)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        RAW_ACCOUNTS = data.accounts || [];
+        VIEW_ACCOUNT_EMAIL = ACTIVE_ACCOUNT_EMAIL || RAW_QUOTA?.account?.email || '';
+        syncTrendAccountOptions();
+        renderQuotaTab();
+      }
+    } catch {}
+  });
+
+  // 趋势图范围与账户切换
   modalOverlay.querySelectorAll('#trend-range-group .au-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       modalOverlay.querySelectorAll('#trend-range-group .au-btn').forEach(b => b.classList.remove('on'));
@@ -1845,6 +2051,10 @@
       const range = btn.getAttribute('data-range');
       fetchTrendData(range);
     });
+  });
+  modalOverlay.querySelector('#trend-account-select')?.addEventListener('change', (e) => {
+    TREND_ACCOUNT_EMAIL = e.target.value || '';
+    fetchTrendData();
   });
 
   // 搜索框输入事件
@@ -1907,6 +2117,7 @@
   ensureMounted();
   syncDateInputs();
   fetchQuota();
+  fetchAccounts();
   fetchUsage();
   fetchEstimates();
   setInterval(ensureMounted, 2500);
@@ -1914,6 +2125,7 @@
   setInterval(() => {
     if (!overlay.classList.contains('open')) return;
     if (activeTab === 'tab-quota') {
+      fetchAccounts();
       fetchEstimates();
       fetchUsage();
     } else if (usageTabs.includes(activeTab)) fetchUsage();

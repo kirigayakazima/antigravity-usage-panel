@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { scanConversations } from './lib/conversations.js';
 import { HistoryStore } from './lib/history.js';
 import { estimateQuota } from './lib/quota-estimates.mjs';
+import { loadAccounts, saveAccounts, upsertAccountSnapshot, removeAccountSnapshot, listAccountSummaries } from './lib/accounts.mjs';
 
 process.on('uncaughtException', (err) => {
   try {
@@ -27,6 +28,10 @@ const home = homedir();
 const historyDir = join(home, '.dsh', 'antigravity-usage');
 const conversationCacheDir = join(historyDir, 'panel-cache');
 const quotaSamplesFile = join(historyDir, 'panel-quota-samples.json');
+const accountsFile = join(historyDir, 'panel-accounts.json');
+const accountsMap = loadAccounts(accountsFile);
+let lastAccountsSave = 0;
+let lastActiveEmail = '';
 const historyStore = new HistoryStore(historyDir, 180);
 try {
   historyStore.load();
@@ -229,10 +234,19 @@ async function getQuota() {
     lastQuotaTime = now;
 
     try {
+      const email = us.email || '';
+      if (upsertAccountSnapshot(accountsMap, lastQuotaData, {})) {
+        if (email !== lastActiveEmail || now - lastAccountsSave > 15_000) {
+          saveAccounts(accountsFile, accountsMap);
+          lastAccountsSave = now;
+          lastActiveEmail = email;
+        }
+      }
       historyStore.append({
         ok: true,
         ts: now,
         port: cachedPort,
+        account: email,
         groups: (data.groups || data.response?.groups || []).map(g => ({
           name: g.displayName || '',
           buckets: (g.buckets || []).map(b => ({
@@ -273,7 +287,7 @@ async function getConversations() {
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-codeium-csrf-token');
 
   if (req.method === 'OPTIONS') {
@@ -314,12 +328,46 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/accounts') {
+    if (req.method === 'DELETE') {
+      const email = url.searchParams.get('email') || '';
+      const removed = removeAccountSnapshot(accountsMap, email);
+      if (removed) saveAccounts(accountsFile, accountsMap);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        removed,
+        activeEmail: lastQuotaData?.account?.email || '',
+        accounts: listAccountSummaries(accountsMap, lastQuotaData?.account?.email || '')
+      }));
+      return;
+    }
+    try {
+      await getQuota().catch(() => null);
+      const activeEmail = lastQuotaData?.account?.email || '';
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        activeEmail,
+        accounts: listAccountSummaries(accountsMap, activeEmail)
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: err.message, accounts: [] }));
+    }
+    return;
+  }
+
   if (url.pathname === '/api/quota-estimates') {
     try {
       const [, quota] = await Promise.all([getConversations(), getQuota()]);
       const estimates = estimateQuota(quota, tokenEvents, quotaSamples);
       if (Object.values(estimates).some(sample => sample.source === 'current')) {
         try { writeFileSync(quotaSamplesFile, JSON.stringify(Object.fromEntries(quotaSamples)), 'utf8'); } catch {}
+      }
+      if (upsertAccountSnapshot(accountsMap, quota, estimates)) {
+        saveAccounts(accountsFile, accountsMap);
+        lastAccountsSave = Date.now();
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ estimates }));
@@ -332,7 +380,8 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/history') {
     try {
       const range = url.searchParams.get('range') || '24h';
-      const history = historyStore.query(range, 400);
+      const account = url.searchParams.get('account') || '';
+      const history = historyStore.query(range, 400, account);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(history));
     } catch (err) {

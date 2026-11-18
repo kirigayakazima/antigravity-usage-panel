@@ -5,7 +5,7 @@
   "type": "module",
   "main": "daemon.mjs",
   "scripts": {
-    "test": "node --test bin/inject-install.test.mjs bin/quota-estimates.test.mjs",
+    "test": "node --test bin/inject-install.test.mjs bin/quota-estimates.test.mjs bin/accounts.test.mjs",
     "start": "node daemon.mjs",
     "fix": "一键安装并重启.bat",
     "install:all": "一键安装并重启.bat",
