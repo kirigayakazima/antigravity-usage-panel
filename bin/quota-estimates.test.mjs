@@ -44,3 +44,32 @@ test('a full window can reuse a recent valid sample from the same account and bu
   assert.equal(result.remaining, result.capacity);
   assert.deepEqual(estimateQuota(quota([full], 'other@example.invalid'), [], samples, at), {});
 });
+
+test('argon bucket only matches argon models and isolates its capacity from standard gemini', () => {
+  const argonBucket = { bucketId: 'gemini-argon-wtu-weekly', window: 'weekly', remainingFraction: 0.8, resetTime };
+  const argonGroup = { displayName: 'Gemini 4 Argon', buckets: [argonBucket] };
+  const standardGroup = { displayName: 'Gemini Models', buckets: [gemini, weekly] };
+  const q = { timestamp: at, account: { email: 'local@example.invalid' }, groups: [standardGroup, argonGroup] };
+
+  const argonEvents = [
+    ...events,
+    event(-hour, 2000, 'gemini-4-argon'),
+    event(-2 * hour, 3000, 'gemini-4-argon-trial'),
+    event(-3 * hour, 5000, 'gemini-4-argon')
+  ];
+
+  const estimates = estimateQuota(q, argonEvents, new Map(), at);
+
+  // Standard gemini should NOT count argon models:
+  // standard gemini-5h window: (-3h, -1h, 0h) gemini-3 tokens: 1000 + 2000 + 3000 = 6000.
+  // used = 1 - 0.75 = 0.25 -> capacity = 24000. (Argon 2000, 3000 not counted!)
+  assert.equal(estimates['gemini-5h'].capacity, 24000);
+
+  // Argon weekly window: 2000 + 3000 + 5000 = 10000.
+  // used = 1 - 0.8 = 0.2 -> capacity = 10000 / 0.2 = 50000.
+  // remaining = 50000 * 0.8 = 40000.
+  assert.equal(estimates['gemini-argon-wtu-weekly'].capacity, 50000);
+  assert.equal(estimates['gemini-argon-wtu-weekly'].remaining, 40000);
+  assert.equal(estimates['gemini-argon-wtu-weekly'].tokens, 10000);
+  assert.equal(estimates['gemini-argon-wtu-weekly'].calls, 3);
+});

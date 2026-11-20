@@ -26,6 +26,7 @@
       --au-orange: #ea580c;
       --au-red: #dc2626;
       --au-purple: #8b5cf6;
+      --au-cyan: #06b6d4;
       --au-pill-bg: #ffffff;
       --au-pill-border: #e2e8f0;
       --au-pill-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -45,6 +46,7 @@
         --au-orange: #f97316;
         --au-red: #ef4444;
         --au-purple: #a78bfa;
+        --au-cyan: #22d3ee;
         --au-pill-bg: rgba(30, 41, 59, 0.95);
         --au-pill-border: rgba(255, 255, 255, 0.15);
         --au-pill-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
@@ -414,6 +416,7 @@
     .au-quota-group h4 { display: flex; align-items: center; gap: 9px; font-size: 14px; margin: 0 0 12px; }
     .au-group-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; color: var(--au-brand); background: color-mix(in srgb, var(--au-brand) 12%, transparent); }
     .au-group-icon[data-group="1"] { color: var(--au-purple); background: color-mix(in srgb, var(--au-purple) 12%, transparent); }
+    .au-group-icon[data-group="2"] { color: var(--au-cyan); background: color-mix(in srgb, var(--au-cyan) 12%, transparent); }
     .au-quota-window + .au-quota-window { margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--au-border-l1); }
     .au-quota-window .au-bucket-label { font-weight: 600; color: var(--au-text-main); }
     .au-quota-window .au-bucket-pct { font-size: 25px; letter-spacing: -.03em; font-weight: 700; }
@@ -501,6 +504,7 @@
       <svg class="agy-pill-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 12V8m5 4V4m5 8V6" stroke-linecap="round"/></svg>
       <span class="agy-pill-item" id="agy-pill-gemini" hidden><span>Gemini</span><b>—</b></span>
       <span class="agy-pill-item" id="agy-pill-third" hidden><span>Claude / GPT</span><b>—</b></span>
+      <span class="agy-pill-item" id="agy-pill-argon" hidden><span>Argon</span><b>—</b></span>
       <span class="agy-pill-item" id="agy-pill-status">额度</span>
     </button>
   `;
@@ -898,6 +902,9 @@
   }
 
   function quotaGroupName(group) {
+    if (/argon/i.test(group.displayName) || (group.buckets || []).some(b => /argon/i.test(b.bucketId))) {
+      return 'Gemini 4 Argon';
+    }
     if (/gemini/i.test(group.displayName)) return 'Gemini';
     if (/claude|gpt/i.test(group.displayName)) return 'Claude / GPT';
     return group.displayName || '其他模型';
@@ -1018,12 +1025,16 @@
     const sessions = totals?.sessions ?? rangeConvs.length;
 
     let geminiTokens = 0, geminiCalls = 0;
+    let argonTokens = 0, argonCalls = 0;
     let thirdTokens = 0, thirdCalls = 0;
     for (const c of rangeConvs) {
       for (const [model, count] of Object.entries(c.modelCounts || {})) {
         const mt = c.modelTokens?.[model] || {};
         const mTotal = tokenTotal(mt);
-        if (/gemini/i.test(model)) {
+        if (/argon/i.test(model)) {
+          argonTokens += mTotal;
+          argonCalls += count;
+        } else if (/gemini/i.test(model)) {
           geminiTokens += mTotal;
           geminiCalls += count;
         } else if (/claude|gpt/i.test(model)) {
@@ -1043,6 +1054,8 @@
       sessions,
       geminiTokens,
       geminiCalls,
+      argonTokens,
+      argonCalls,
       thirdTokens,
       thirdCalls
     };
@@ -1176,15 +1189,18 @@
     }
     grid.innerHTML = groups.map((group, index) => {
       const windows = [...group.buckets].sort((a, b) => Number(b.window === '5h') - Number(a.window === '5h'));
-      const title = escapeHTML(quotaGroupName(group));
       const groupName = quotaGroupName(group);
-      const isGemini = groupName === 'Gemini';
-      const isThird = groupName === 'Claude / GPT';
-      const gTokens = isGemini ? period.geminiTokens : isThird ? period.thirdTokens : 0;
-      const gCalls = isGemini ? period.geminiCalls : isThird ? period.thirdCalls : 0;
+      const title = escapeHTML(groupName);
+      const isArgon = /argon/i.test(groupName);
+      const isGemini = !isArgon && /gemini/i.test(groupName);
+      const isThird = /claude|gpt/i.test(groupName);
+      const gTokens = isArgon ? period.argonTokens : isGemini ? period.geminiTokens : isThird ? period.thirdTokens : 0;
+      const gCalls = isArgon ? period.argonCalls : isGemini ? period.geminiCalls : isThird ? period.thirdCalls : 0;
+      const groupBadgeIndex = isArgon ? 2 : isThird ? 1 : 0;
+      const groupBadgeIcon = isArgon ? '⚡' : isThird ? '◈' : '✦';
       return `
         <section class="au-quota-group">
-          <h4><span class="au-group-icon" data-group="${index % 2}" aria-hidden="true">${index % 2 ? '◈' : '✦'}</span>${title}</h4>
+          <h4><span class="au-group-icon" data-group="${groupBadgeIndex}" aria-hidden="true">${groupBadgeIcon}</span>${title}</h4>
           <div class="au-group-period-usage">
             <span>所选天数消耗: <b style="color:var(--au-text-main)">${fmtNum(gTokens)}</b> Token</span>
             <span>${fmtFull(gCalls)} 次调用</span>
@@ -1219,8 +1235,13 @@
   function updateCapsuleDisplay() {
     const groups = RAW_QUOTA?.groups || [];
     const descriptions = [];
-    for (const [id, name] of [['gemini', 'Gemini'], ['third', 'Claude / GPT']]) {
+    for (const [id, name, shortLabel] of [
+      ['gemini', 'Gemini', 'Gemini'],
+      ['third', 'Claude / GPT', '3P'],
+      ['argon', 'Gemini 4 Argon', 'Argon']
+    ]) {
       const item = capsuleRoot.querySelector('#agy-pill-' + id);
+      if (!item) continue;
       const buckets = groups.filter(g => quotaGroupName(g) === name).flatMap(g => g.buckets || []);
       const bucket = buckets.filter(b => quotaFraction(b) !== null)
         .sort((a, b) => quotaFraction(a) - quotaFraction(b))[0];
@@ -1229,7 +1250,7 @@
         const value = quotaFraction(bucket);
         const count = item.querySelector('b');
         const windowLabel = bucket.window === '5h' ? '5h' : bucket.window === 'weekly' ? '周' : '';
-        item.firstElementChild.textContent = windowLabel ? `${name} ${windowLabel}` : name;
+        item.firstElementChild.textContent = windowLabel ? `${shortLabel} ${windowLabel}` : shortLabel;
         count.textContent = pct(value, value > 0 && value < 0.01 ? 1 : 0);
         count.style.color = remainingColor(value);
         descriptions.push(`${name} · ${quotaWindow(bucket)}剩余 ${pct(value)}`);
@@ -1290,14 +1311,16 @@
     'gemini-5h': '#8b5cf6',
     '3p-weekly': '#f59e0b',
     '3p-5h': '#10b981',
-    'default': '#06b6d4'
+    'gemini-argon-wtu-weekly': '#06b6d4',
+    'default': '#94a3b8'
   };
 
   const SERIES_LABEL_MAP = {
     'gemini-weekly': 'Gemini 周期配额 (周)',
     'gemini-5h': 'Gemini 速率限制 (5h)',
     '3p-weekly': '第三方模型配额 (周)',
-    '3p-5h': '第三方速率限制 (5h)'
+    '3p-5h': '第三方速率限制 (5h)',
+    'gemini-argon-wtu-weekly': 'Gemini 4 Argon 独立配额 (周)'
   };
 
   function syncTrendAccountOptions(historyAccounts = []) {
