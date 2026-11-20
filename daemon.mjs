@@ -19,7 +19,7 @@ process.on('unhandledRejection', (err) => {
   } catch (e) {}
 });
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
@@ -95,22 +95,43 @@ async function testLsConnection(port, knownCsrf = null) {
 }
 
 async function discoverLanguageServer() {
-  // 1. Windows: wmic + netstat (超快，几十毫秒即可秒级发现最新 HTTPS/HTTP 端口与 Token)
+  // 1. Windows: 进程命令行与端口发现（优先 wmic，兜底 PowerShell Get-CimInstance）
   if (process.platform === 'win32') {
+    let pid = null;
+    let csrf = null;
+
     try {
       const wmicOut = execSync('wmic process where "name=\'language_server.exe\'" get ProcessId,CommandLine /format:list', {
         encoding: 'utf8',
-        timeout: 2000,
+        timeout: 1500,
         windowsHide: true
       });
       const pidMatch = wmicOut.match(/ProcessId=(\d+)/i);
       const cmdMatch = wmicOut.match(/CommandLine=(.+)/i);
-      if (pidMatch && cmdMatch) {
-        const pid = pidMatch[1];
-        const cmd = cmdMatch[1];
-        const csrfMatch = cmd.match(/--csrf_token\s+([a-f0-9\-]+)/i);
-        const csrf = csrfMatch ? csrfMatch[1] : null;
+      if (pidMatch) pid = pidMatch[1];
+      if (cmdMatch) {
+        const csrfMatch = cmdMatch[1].match(/--csrf_token\s+([a-f0-9\-]+)/i);
+        if (csrfMatch) csrf = csrfMatch[1];
+      }
+    } catch {}
 
+    if (!pid || !csrf) {
+      try {
+        const psOut = execFileSync('powershell.exe', [
+          '-NoProfile',
+          '-NonInteractive',
+          '-Command',
+          'Get-CimInstance Win32_Process -Filter "name=\'language_server.exe\'" | Select-Object -Property ProcessId, CommandLine | Format-List'
+        ], { encoding: 'utf8', timeout: 3500, windowsHide: true });
+        const pidMatch = psOut.match(/ProcessId\s*:\s*(\d+)/i);
+        const csrfMatch = psOut.match(/--csrf_token\s+([a-f0-9\-]+)/i);
+        if (pidMatch) pid = pidMatch[1];
+        if (csrfMatch) csrf = csrfMatch[1];
+      } catch {}
+    }
+
+    if (pid && csrf) {
+      try {
         const netOut = execSync('netstat -ano -p tcp', {
           encoding: 'utf8',
           timeout: 2000,
@@ -123,8 +144,8 @@ async function discoverLanguageServer() {
           const ok = await testLsConnection(port, csrf);
           if (ok) return ok;
         }
-      }
-    } catch (e) {}
+      } catch {}
+    }
   }
 
   // 2. 兜底扫描日志文件
@@ -151,7 +172,7 @@ async function discoverLanguageServer() {
       const matches = [...content.matchAll(PORT_RE)];
       for (let i = matches.length - 1; i >= 0; i--) {
         const port = Number(matches[i][1]);
-        const ok = await testLsConnection(port);
+        const ok = await testLsConnection(port, cachedCsrf);
         if (ok) return ok;
       }
     } catch (e) {}

@@ -1103,7 +1103,12 @@
       selectedEmail = activeEmail || accounts[0]?.email || '';
     }
     const viewedAccount = accounts.find(a => a.email === selectedEmail) || null;
-    const isViewingActive = !viewedAccount || viewedAccount.isActive || !activeEmail || viewedAccount.email === activeEmail;
+    const isViewingActive = Boolean(
+      (activeEmail && selectedEmail === activeEmail) ||
+      (viewedAccount?.isActive) ||
+      (!selectedEmail && activeEmail) ||
+      (!activeEmail && !viewedAccount)
+    );
 
     const acctBar = modalOverlay.querySelector('#quota-accounts-bar');
     if (acctBar) {
@@ -1145,8 +1150,12 @@
 
     const cached = quotaFailed || (q && Date.now() - q.timestamp > 30_000);
     const status = modalOverlay.querySelector('#ls-status-pill');
-    status.textContent = activeGroups.length ? (cached ? '缓存数据' : '已连接') : (quotaLoading ? '连接中' : '额度不可用');
-    status.dataset.state = activeGroups.length && !cached ? 'online' : 'idle';
+    status.textContent = isViewingActive
+      ? (activeGroups.length ? (cached ? '缓存数据' : '已连接') : (quotaLoading ? '连接中' : '额度不可用'))
+      : '离线快照';
+    status.dataset.state = isViewingActive
+      ? (activeGroups.length && !cached ? 'online' : 'idle')
+      : 'idle';
 
     const displayTime = isViewingActive ? q?.timestamp : viewedAccount?.lastSeenAt;
     const displayPort = isViewingActive ? q?.port : viewedAccount?.port;
@@ -1822,9 +1831,11 @@
         const nextActive = nextQuota?.account?.email || '';
         RAW_QUOTA = nextQuota;
         if (nextActive) {
+          const changed = prevActive && prevActive !== nextActive;
           ACTIVE_ACCOUNT_EMAIL = nextActive;
-          if (prevActive && prevActive !== nextActive && VIEW_ACCOUNT_EMAIL === prevActive) {
+          if (changed || !VIEW_ACCOUNT_EMAIL || VIEW_ACCOUNT_EMAIL === prevActive) {
             VIEW_ACCOUNT_EMAIL = nextActive;
+            fetchAccounts();
           }
         }
         quotaFailed = false;
@@ -1956,7 +1967,7 @@
   btnRefresh.addEventListener('click', () => {
     btnRefresh.disabled = true;
     btnRefresh.textContent = '刷新中…';
-    Promise.allSettled([fetchQuota(), refreshTab(activeTab)]).finally(() => {
+    Promise.allSettled([fetchQuota(), fetchAccounts(), refreshTab(activeTab)]).finally(() => {
       btnRefresh.disabled = false;
       btnRefresh.textContent = '↻ 刷新';
     });
