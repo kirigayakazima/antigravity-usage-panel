@@ -4,6 +4,20 @@
     document.addEventListener('DOMContentLoaded', initAntigravityQuotaInjection, { once: true });
     return;
   }
+  function syncLocalLsAuth() {
+    try {
+      const port = Number(window.location.port);
+      const csrf = window.localStorage?.getItem('agy_session_csrf_token') || '';
+      if (port && csrf) {
+        fetch('http://127.0.0.1:19388/api/ls-auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ port, csrf })
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  }
+  syncLocalLsAuth();
   // 1. 清理旧实例 (支持无缝热重载与重新注入)
   try {
     document.querySelectorAll('#agy-popup-card, #agy-quota-capsule-root, #agy-inpage-modal-overlay, #agy-usage-style').forEach(el => el.remove());
@@ -1841,6 +1855,7 @@
         quotaFailed = false;
       } catch {
         quotaFailed = true;
+        syncLocalLsAuth();
       } finally {
         quotaLoading = false;
         renderQuotaTab();

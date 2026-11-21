@@ -95,7 +95,28 @@ async function testLsConnection(port, knownCsrf = null) {
 }
 
 async function discoverLanguageServer() {
-  // 1. Windows: 进程命令行与端口发现（优先 wmic，兜底 PowerShell Get-CimInstance）
+  // 1. Antigravity 2.34.0+ 优先从 Local Storage (LevelDB) 扫描最新的 agy_session_csrf_token 与端口 (2ms 秒连)
+  try {
+    const levelDbDir = join(appData, 'Antigravity', 'Local Storage', 'leveldb');
+    const files = readdirSync(levelDbDir).map(f => ({ path: join(levelDbDir, f), mtime: statSync(join(levelDbDir, f)).mtimeMs }));
+    files.sort((a, b) => b.mtime - a.mtime);
+    const TOKEN_RE = /agy_session_csrf_token[^\w-]*([a-f0-9\-]{36})[^\n]*?https:\/\/127\.0\.0\.1:(\d+)/gi;
+    const candidates = [];
+    for (const { path } of files) {
+      try {
+        const text = readFileSync(path).toString('latin1');
+        for (const m of text.matchAll(TOKEN_RE)) {
+          candidates.push({ csrf: m[1], port: Number(m[2]) });
+        }
+      } catch {}
+    }
+    for (const { port, csrf } of candidates.reverse()) {
+      const ok = await testLsConnection(port, csrf);
+      if (ok) return ok;
+    }
+  } catch {}
+
+  // 2. Windows: 进程命令行与端口发现（优先 wmic，兜底 PowerShell Get-CimInstance）
   if (process.platform === 'win32') {
     let pid = null;
     let csrf = null;
@@ -322,6 +343,30 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/api/ping') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, port: cachedPort, time: Date.now() }));
+    return;
+  }
+
+  if (url.pathname === '/api/ls-auth' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { port, csrf } = JSON.parse(body);
+        if (port && csrf) {
+          const ok = await testLsConnection(Number(port), csrf);
+          if (ok) {
+            cachedPort = ok.port;
+            cachedCsrf = ok.csrf;
+            cachedProto = ok.protocol || 'https';
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, port: cachedPort }));
+            return;
+          }
+        }
+      } catch {}
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false }));
+    });
     return;
   }
 
