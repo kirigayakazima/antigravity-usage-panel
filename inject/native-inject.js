@@ -481,6 +481,8 @@
     .au-acct-dot.online { background: var(--au-emerald); box-shadow: 0 0 0 2px color-mix(in srgb, var(--au-emerald) 25%, transparent); }
     .au-acct-badge { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--au-bg-layer-2); color: var(--au-text-muted); font-weight: 600; }
     .au-acct-badge.reset { background: color-mix(in srgb, var(--au-emerald) 15%, transparent); color: var(--au-emerald); }
+    .au-acct-badge.vault { background: color-mix(in srgb, var(--au-brand) 14%, transparent); color: var(--au-brand); }
+    .au-acct-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
     .au-acct-banner {
       display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
       padding: 9px 12px; margin-bottom: 14px; border-radius: 10px; font-size: 11.5px;
@@ -623,7 +625,8 @@
           <div id="quota-accounts-bar" class="au-acct-switcher" hidden></div>
           <div id="quota-offline-banner" class="au-acct-banner" hidden>
             <span id="quota-offline-text">正在查看离线账户快照</span>
-            <div style="display: flex; gap: 6px;">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button id="quota-switch-acct-btn" class="au-btn on" style="padding: 3px 10px; font-size: 11px;" hidden>🔄 切换至此账号</button>
               <button id="quota-back-active-btn" class="au-btn" style="padding: 2px 8px; font-size: 11px;">切回当前登录账户</button>
               <button id="quota-remove-acct-btn" class="au-btn" style="padding: 2px 8px; font-size: 11px; color: var(--au-red);">移除记录</button>
             </div>
@@ -831,6 +834,7 @@
   let RAW_QUOTA = null;
   let RAW_ESTIMATES = {};
   let RAW_ACCOUNTS = [];
+  let VAULT_SUPPORTED = false;
   let ACTIVE_ACCOUNT_EMAIL = '';
   let VIEW_ACCOUNT_EMAIL = '';
   let estimatesLoading = true;
@@ -1126,20 +1130,92 @@
 
     const acctBar = modalOverlay.querySelector('#quota-accounts-bar');
     if (acctBar) {
-      acctBar.hidden = accounts.length === 0;
-      acctBar.innerHTML = accounts.map(acct => `
-        <button type="button" class="au-acct-pill${acct.email === selectedEmail ? ' on' : ''}" data-email="${escapeHTML(acct.email)}" title="${acct.isActive ? '当前客户端登录账号' : '点击查看该账号离线额度快照'}">
+      acctBar.hidden = accounts.length === 0 && !VAULT_SUPPORTED;
+      const pillsHtml = accounts.map(acct => `
+        <button type="button" class="au-acct-pill${acct.email === selectedEmail ? ' on' : ''}" data-email="${escapeHTML(acct.email)}" title="${acct.isActive ? '当前客户端登录账号' : (acct.hasVault ? '点击查看离线快照或一键切换至此账号' : '点击查看该账号离线额度快照')}">
           <span class="au-acct-dot${acct.isActive ? ' online' : ''}"></span>
           <span>${escapeHTML(acct.email)}</span>
           ${accountStatusBadge(acct)}
+          ${acct.hasVault ? '<span class="au-acct-badge vault" title="已在 Windows 凭据管理器加密备份，可一键切换">🔑 已备份</span>' : ''}
         </button>
       `).join('');
+      const actionsHtml = VAULT_SUPPORTED ? `
+        <div class="au-acct-actions">
+          ${activeEmail ? '<button type="button" id="quota-backup-cur-btn" class="au-btn" style="padding: 4px 9px; font-size: 11px;" title="将当前登录账号的凭据备份到 Windows 凭据管理器">💾 备份当前</button>' : ''}
+          <button type="button" id="quota-prepare-add-btn" class="au-btn" style="padding: 4px 9px; font-size: 11px;" title="先备份当前账号，再仅清除本地凭据（不吊销服务端 Token）并重启客户端登录新账号">➕ 切换登录新账号</button>
+        </div>
+      ` : '';
+      acctBar.innerHTML = pillsHtml + actionsHtml;
       acctBar.querySelectorAll('.au-acct-pill').forEach(btn => {
         btn.addEventListener('click', () => {
           VIEW_ACCOUNT_EMAIL = btn.getAttribute('data-email') || '';
           renderQuotaTab();
         });
       });
+      const backupBtn = acctBar.querySelector('#quota-backup-cur-btn');
+      if (backupBtn) {
+        backupBtn.addEventListener('click', async () => {
+          backupBtn.disabled = true;
+          backupBtn.textContent = '备份中…';
+          try {
+            const res = await fetch('http://127.0.0.1:19388/api/accounts/backup', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: activeEmail }),
+              signal: AbortSignal.timeout(10000)
+            });
+            const data = await res.json();
+            if (data.ok) {
+              if (Array.isArray(data.accounts)) RAW_ACCOUNTS = data.accounts;
+              backupBtn.textContent = '✅ 已备份';
+              setTimeout(() => renderQuotaTab(), 900);
+            } else {
+              backupBtn.textContent = '❌ 失败';
+              alert('备份失败：' + (data.error || '未知错误'));
+              backupBtn.disabled = false;
+            }
+          } catch (err) {
+            backupBtn.textContent = '❌ 失败';
+            alert('备份请求异常：' + (err?.message || err));
+            backupBtn.disabled = false;
+          }
+        });
+      }
+      const addBtn = acctBar.querySelector('#quota-prepare-add-btn');
+      if (addBtn) {
+        addBtn.addEventListener('click', async () => {
+          const msg = activeEmail
+            ? `将先自动把 ${activeEmail} 的凭据备份到 Windows 凭据管理器（不会向 Google 吊销 Token），然后关闭反重力客户端、仅清除本地登录态并重启至登录页，方便你登录第二个账号。\n\n请先确保已保存未提交的更改，是否继续？`
+            : '将清除本地登录态并重启反重力客户端至登录页，是否继续？';
+          if (!confirm(msg)) return;
+          addBtn.disabled = true;
+          addBtn.textContent = '准备重启…';
+          try {
+            const res = await fetch('http://127.0.0.1:19388/api/accounts/prepare-add', {
+              method: 'POST',
+              signal: AbortSignal.timeout(10000)
+            });
+            const data = await res.json();
+            if (!data.ok) {
+              alert('操作失败：' + (data.error || '未知错误'));
+              addBtn.disabled = false;
+              addBtn.textContent = '➕ 切换登录新账号';
+            } else {
+              setTimeout(() => {
+                if (addBtn.disabled) {
+                  addBtn.disabled = false;
+                  addBtn.textContent = '➕ 切换登录新账号';
+                  alert('客户端未能自动重启，请查看 ~/.dsh/antigravity-usage/vault.log');
+                }
+              }, 10000);
+            }
+          } catch (err) {
+            alert('请求失败：' + (err?.message || err));
+            addBtn.disabled = false;
+            addBtn.textContent = '➕ 切换登录新账号';
+          }
+        });
+      }
     }
 
     const offlineBanner = modalOverlay.querySelector('#quota-offline-banner');
@@ -1148,8 +1224,16 @@
       offlineBanner.hidden = !showOffline;
       if (showOffline) {
         const textEl = modalOverlay.querySelector('#quota-offline-text');
+        const switchBtn = modalOverlay.querySelector('#quota-switch-acct-btn');
+        const canSwitch = Boolean(VAULT_SUPPORTED && viewedAccount.hasVault);
+        if (switchBtn) {
+          switchBtn.hidden = !canSwitch;
+          switchBtn.dataset.email = viewedAccount.email;
+        }
         if (textEl) {
-          textEl.textContent = `正在查看 ${viewedAccount.email} 的离线快照（最后同步于 ${fmtTime(viewedAccount.lastSeenAt)}）· 如需在客户端登录此账号，请点左下角头像 → Account → Sign Out`;
+          textEl.textContent = canSwitch
+            ? `正在查看 ${viewedAccount.email} 的离线快照（最后同步于 ${fmtTime(viewedAccount.lastSeenAt)}）· 已在系统凭据管理器备份，可一键切换并重启客户端`
+            : `正在查看 ${viewedAccount.email} 的离线快照（最后同步于 ${fmtTime(viewedAccount.lastSeenAt)}）· 尚未备份该账号凭据，点上方「➕ 切换登录新账号」登录一次即可自动入库`;
         }
         const removeBtn = modalOverlay.querySelector('#quota-remove-acct-btn');
         if (removeBtn) removeBtn.dataset.email = viewedAccount.email;
@@ -1825,6 +1909,7 @@
         const data = await res.json();
         if (data.ok) {
           RAW_ACCOUNTS = data.accounts || [];
+          VAULT_SUPPORTED = Boolean(data.vaultSupported);
           ACTIVE_ACCOUNT_EMAIL = data.activeEmail || '';
           syncTrendAccountOptions();
           if (activeTab === 'tab-quota') renderQuotaTab();
@@ -2069,7 +2154,43 @@
     });
   });
 
-  // 离线账户快照切回 / 移除
+  // 离线账户快照一键切换 / 切回 / 移除
+  modalOverlay.querySelector('#quota-switch-acct-btn')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const email = btn?.dataset?.email;
+    if (!email) return;
+    if (!confirm(`将先自动保存当前账号最新凭据，随后关闭反重力客户端、切换至 ${email} 并重新启动（约 3~5 秒）。\n\n请先确保已保存未提交内容，是否继续？`)) {
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '正在切换重启…';
+    try {
+      const res = await fetch('http://127.0.0.1:19388/api/accounts/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+        signal: AbortSignal.timeout(10000)
+      });
+      const data = await res.json();
+      if (!data.ok) {
+        alert('切换失败：' + (data.error || '未知错误'));
+        btn.disabled = false;
+        btn.textContent = '🔄 切换至此账号';
+      } else {
+        setTimeout(() => {
+          if (btn.disabled) {
+            btn.disabled = false;
+            btn.textContent = '🔄 切换至此账号';
+            alert('切换重启超时，请查看 ~/.dsh/antigravity-usage/vault.log');
+          }
+        }, 10000);
+      }
+    } catch (err) {
+      alert('切换请求失败：' + (err?.message || err));
+      btn.disabled = false;
+      btn.textContent = '🔄 切换至此账号';
+    }
+  });
   modalOverlay.querySelector('#quota-back-active-btn')?.addEventListener('click', () => {
     VIEW_ACCOUNT_EMAIL = ACTIVE_ACCOUNT_EMAIL || RAW_QUOTA?.account?.email || '';
     renderQuotaTab();

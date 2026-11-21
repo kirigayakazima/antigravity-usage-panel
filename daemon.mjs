@@ -4,8 +4,17 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { scanConversations } from './lib/conversations.js';
 import { HistoryStore } from './lib/history.js';
-import { estimateQuota } from './lib/quota-estimates.mjs';
+import { estimateQuota, buildAccountTimeline } from './lib/quota-estimates.mjs';
 import { loadAccounts, saveAccounts, upsertAccountSnapshot, removeAccountSnapshot, listAccountSummaries } from './lib/accounts.mjs';
+import {
+  isVaultSupported,
+  listVaultCredentials,
+  backupAccountCredential,
+  switchAccountCredential,
+  prepareAddAccount,
+  deleteVaultCredential,
+  mergeVaultStatus
+} from './lib/credential-vault.mjs';
 
 process.on('uncaughtException', (err) => {
   try {
@@ -32,6 +41,7 @@ const accountsFile = join(historyDir, 'panel-accounts.json');
 const accountsMap = loadAccounts(accountsFile);
 let lastAccountsSave = 0;
 let lastActiveEmail = '';
+const autoBackedUpEmails = new Map();
 const historyStore = new HistoryStore(historyDir, 180);
 try {
   historyStore.load();
@@ -284,6 +294,13 @@ async function getQuota() {
           lastActiveEmail = email;
         }
       }
+      if (email && isVaultSupported()) {
+        const lastBak = autoBackedUpEmails.get(email.toLowerCase()) || 0;
+        if (now - lastBak > 10 * 60_000) {
+          autoBackedUpEmails.set(email.toLowerCase(), now);
+          backupAccountCredential(email).catch(() => {});
+        }
+      }
       historyStore.append({
         ok: true,
         ts: now,
@@ -399,23 +416,28 @@ const server = http.createServer(async (req, res) => {
       const email = url.searchParams.get('email') || '';
       const removed = removeAccountSnapshot(accountsMap, email);
       if (removed) saveAccounts(accountsFile, accountsMap);
+      const activeEmail = lastQuotaData?.account?.email || '';
+      const vault = await listVaultCredentials();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         ok: true,
         removed,
-        activeEmail: lastQuotaData?.account?.email || '',
-        accounts: listAccountSummaries(accountsMap, lastQuotaData?.account?.email || '')
+        activeEmail,
+        vaultSupported: isVaultSupported(),
+        accounts: mergeVaultStatus(listAccountSummaries(accountsMap, activeEmail), vault.items)
       }));
       return;
     }
     try {
       await getQuota().catch(() => null);
       const activeEmail = lastQuotaData?.account?.email || '';
+      const vault = await listVaultCredentials();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
         ok: true,
         activeEmail,
-        accounts: listAccountSummaries(accountsMap, activeEmail)
+        vaultSupported: isVaultSupported(),
+        accounts: mergeVaultStatus(listAccountSummaries(accountsMap, activeEmail), vault.items)
       }));
     } catch (err) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -424,10 +446,103 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === '/api/accounts/backup' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        await getQuota().catch(() => null);
+        let reqEmail = '';
+        try { reqEmail = JSON.parse(body || '{}').email || ''; } catch {}
+        const targetEmail = (reqEmail || lastQuotaData?.account?.email || '').trim();
+        const result = await backupAccountCredential(targetEmail);
+        const activeEmail = lastQuotaData?.account?.email || '';
+        const vault = await listVaultCredentials(true);
+        res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          ...result,
+          activeEmail,
+          vaultSupported: isVaultSupported(),
+          accounts: mergeVaultStatus(listAccountSummaries(accountsMap, activeEmail), vault.items)
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/accounts/switch' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const parsed = JSON.parse(body || '{}');
+        const targetEmail = (parsed.email || '').trim();
+        const activeEmail = lastQuotaData?.account?.email || '';
+        const result = await switchAccountCredential(targetEmail, activeEmail);
+        if (result.ok) {
+          cachedPort = null;
+          cachedCsrf = null;
+          lastQuotaData = null;
+          lastQuotaTime = 0;
+        }
+        res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/accounts/prepare-add' && req.method === 'POST') {
+    try {
+      await getQuota().catch(() => null);
+      const activeEmail = lastQuotaData?.account?.email || '';
+      const result = await prepareAddAccount(activeEmail);
+      if (result.ok) {
+        cachedPort = null;
+        cachedCsrf = null;
+        lastQuotaData = null;
+        lastQuotaTime = 0;
+      }
+      res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: err.message }));
+    }
+    return;
+  }
+
+  if (url.pathname === '/api/accounts/vault' && req.method === 'DELETE') {
+    try {
+      const email = url.searchParams.get('email') || '';
+      const result = await deleteVaultCredential(email);
+      const activeEmail = lastQuotaData?.account?.email || '';
+      const vault = await listVaultCredentials(true);
+      res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ...result,
+        activeEmail,
+        vaultSupported: isVaultSupported(),
+        accounts: mergeVaultStatus(listAccountSummaries(accountsMap, activeEmail), vault.items)
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: err.message }));
+    }
+    return;
+  }
+
   if (url.pathname === '/api/quota-estimates') {
     try {
       const [, quota] = await Promise.all([getConversations(), getQuota()]);
-      const estimates = estimateQuota(quota, tokenEvents, quotaSamples);
+      const accountTimeline = buildAccountTimeline(historyStore.samples);
+      const estimates = estimateQuota(quota, tokenEvents, quotaSamples, Date.now(), accountTimeline);
       if (Object.values(estimates).some(sample => sample.source === 'current')) {
         try { writeFileSync(quotaSamplesFile, JSON.stringify(Object.fromEntries(quotaSamples)), 'utf8'); } catch {}
       }

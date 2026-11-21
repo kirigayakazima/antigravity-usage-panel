@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimateQuota } from '../lib/quota-estimates.mjs';
+import { estimateQuota, buildAccountTimeline } from '../lib/quota-estimates.mjs';
 
 const hour = 3600000;
 const at = Date.parse('2026-11-07T03:00:00Z');
@@ -72,4 +72,23 @@ test('argon bucket only matches argon models and isolates its capacity from stan
   assert.equal(estimates['gemini-argon-wtu-weekly'].remaining, 40000);
   assert.equal(estimates['gemini-argon-wtu-weekly'].tokens, 10000);
   assert.equal(estimates['gemini-argon-wtu-weekly'].calls, 3);
+});
+
+test('account timeline excludes token events generated while another account was active', () => {
+  const timeline = buildAccountTimeline([
+    { t: at - 4 * hour, a: 'acctA@example.invalid' },
+    { t: at - 2 * hour, a: 'acctB@example.invalid' },
+    { t: at - hour, a: 'acctA@example.invalid' }
+  ]);
+  const mixedEvents = [
+    event(-3 * hour, 1000, 'gemini-3'),      // acctA
+    event(-1.5 * hour, 90000, 'gemini-3'),   // acctB -> must be excluded for acctA!
+    event(-0.5 * hour, 2000, 'gemini-3'),    // acctA
+    event(0, 3000, 'gemini-3')               // acctA
+  ];
+  const estimates = estimateQuota(quota([gemini], 'acctA@example.invalid'), mixedEvents, new Map(), at, timeline);
+  // Only acctA's 1000 + 2000 + 3000 = 6000 tokens should count (used 25% -> 24000 capacity)
+  assert.equal(estimates['gemini-5h'].tokens, 6000);
+  assert.equal(estimates['gemini-5h'].calls, 3);
+  assert.equal(estimates['gemini-5h'].capacity, 24000);
 });

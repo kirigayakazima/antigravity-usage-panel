@@ -9,7 +9,9 @@
 
 - **顶栏胶囊**固定显示 Gemini、Claude / GPT 及 Gemini 4 Argon（若存在）各自剩余比例最低的窗口。点击顶栏或按 `Alt+Q` 打开面板。
 - **额度**按模型组展示 5 小时和每周剩余比例、进度条和刷新时间。原生支持 **Gemini**、**Claude / GPT** 与 **Gemini 4 Argon** 独立分池统计与专属配色。
-- **多账号快照**额度页顶部集成多账号切换栏，支持查看当前在线账号与历史离线账号快照、预计重置状态及账号一键清理。
+- **多账号无缝热切换与系统凭据保险箱 (v1.4.0)**：原生调用 Windows 凭据管理器（Win32 `advapi32.dll`），将各账号授权凭据安全隔离存储在系统保险箱中（`agy-panel-vault:<email>`，绝不明文落盘）。在面板顶部一键切换已有账号或「准备登录新账号」，自动完成当前凭据保护与客户端热重启（约 3~5 秒）。
+- **进程脱钩与代理自适应注入 (v1.4.0)**：切换 Worker 通过 WMI 脱离 Electron Job Object 独立运行，重启过程自动继承或配置网络代理（`HTTP_PROXY`、`HTTPS_PROXY`、`ALL_PROXY`，默认回退 `http://127.0.0.1:7890`），彻底避免重启客户端后出现网络白屏。
+- **多账号时间线额度折算隔离 (v1.4.0)**：内置账号活跃时间线索引（`buildAccountTimeline`），将本地 Token 消耗精准归属至产生时所在账号，即使在同一 5 小时窗口内轮流使用多个账号，各账号的 5 小时与每周估算池完全独立，杜绝跨账号数据混入导致的容量虚高。
 - **时间过滤器**支持预设天数（今天/7天/14天/30天/90天/全部）与自定义开始/截止日期筛选，全局响应并在额度页实时统计所选天数内的本地消耗与各模型组调用。
 - **用量**支持今天、最近 7 / 14 / 30 / 90 天、全部历史或自定义日期区间。显示总 Token、缓存读取率、输出、调用次数、活跃会话与逐日明细。
 - **额度趋势**绘制实际采样。支持按账户筛选历史采样，累计下降以百分点显示，明显回升单独计数，支持 Argon 独立配额时序监控。
@@ -24,10 +26,15 @@ antigravity-usage-panel/
 ├── inject/
 │   └── native-inject.js    # 注入到 Electron 渲染层的内嵌界面
 ├── bin/
+│   ├── cred-vault.ps1      # 基于 Windows advapi32.dll 的凭据保险箱与切换引擎
+│   ├── switch-worker.mjs   # 进程脱钩独立切换重启 Worker (支持代理注入)
 │   ├── inject-install.mjs  # 解包 app.asar.bak → 注入 → 打包为 app.asar
 │   ├── inject-uninstall.mjs
 │   └── lifecycle-hook.mjs  # 主进程伴随守护钩子
 ├── lib/
+│   ├── accounts.mjs        # 多账号快照管理与排序
+│   ├── credential-vault.mjs # 凭据保险箱 Node.js 适配层与 WMI 脱钩调用
+│   ├── quota-estimates.mjs # 基于账号时间线隔离的配额容量反推
 │   ├── conversations.js    # 离线 SQLite 会话扫描器
 │   └── history.js          # JSONL 历史采样存储 (HistoryStore)
 └── sidecars/panel/         # 可选 Sidecar 独立窗口面板
@@ -39,9 +46,15 @@ antigravity-usage-panel/
 |---|---|
 | `GET /api/ping` | 健康检查 |
 | `GET /api/quota` | Language Server 配额数据透传 |
-| `GET /api/quota-estimates` | 各模型组、各窗口的本地 Token 折算参考 |
+| `GET /api/quota-estimates` | 各模型组、各窗口的本地 Token 折算参考（支持账号时间线隔离） |
 | `GET /api/conversations` | 离线 SQLite 会话扫描结果 |
 | `GET /api/history?range=24h` | 历史采样点查询（支持 24h/7d/30d/all） |
+| `GET /api/accounts` | 多账号快照列表与系统凭据管理器备份状态 |
+| `POST /api/accounts/backup` | 备份指定/当前账号凭据至系统凭据管理器 |
+| `POST /api/accounts/switch` | 一键热切换至指定账号并自动重启客户端 |
+| `POST /api/accounts/prepare-add` | 备份当前账号并安全重置客户端以登录新账号 |
+| `DELETE /api/accounts?email=...` | 移除指定账号的快照记录 |
+| `POST /api/ls-auth` | 接收前端嗅探的 CSRF Token 与端口（适配 2.34.0+） |
 | `GET /api/all` | quota + conversations 合并一次性返回 |
 
 ### 注入机制
