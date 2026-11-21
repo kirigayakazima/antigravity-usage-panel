@@ -22,14 +22,30 @@ try {
     & $node (Join-Path $PSScriptRoot 'inject-install.mjs')
     if ($LASTEXITCODE -ne 0) { throw '注入失败，已停止后续启动。请查看上方错误。' }
 
+    $pluginsDir = Join-Path $env:USERPROFILE '.gemini\config\plugins'
+    $pluginLink = Join-Path $pluginsDir 'antigravity-usage-panel'
+    $existingLink = Get-Item -LiteralPath $pluginLink -Force -ErrorAction SilentlyContinue
+    if (-not $existingLink -or $existingLink.LinkType -eq 'Junction') {
+        $currentTarget = if ($existingLink -and $existingLink.Target) { ($existingLink.Target | Select-Object -First 1) } else { $null }
+        if ($currentTarget -ne $projectRoot) {
+            New-Item -ItemType Directory -Path $pluginsDir -Force | Out-Null
+            if ($existingLink) { & cmd /c rmdir "`"$pluginLink`"" }
+            New-Item -ItemType Junction -Path $pluginLink -Target $projectRoot | Out-Null
+            Write-Host "已同步插件目录联接: $pluginLink -> $projectRoot"
+        }
+    }
+
     Write-Host '[3/4] 检查后台监控服务...'
     $daemonPath = Join-Path $projectRoot 'daemon.mjs'
     $listener = Get-NetTCPConnection -LocalAddress '127.0.0.1' -LocalPort 19388 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($listener) {
         $owner = Get-CimInstance Win32_Process -Filter "ProcessId = $($listener.OwningProcess)" -ErrorAction SilentlyContinue
-        if ($owner.Name -eq 'node.exe' -and $owner.CommandLine -and
-            $owner.CommandLine.TrimEnd().TrimEnd('"').EndsWith($daemonPath, [StringComparison]::OrdinalIgnoreCase)) {
-            Write-Host '正在重启本项目的后台服务以加载更新...'
+        $cmdLine = if ($owner.CommandLine) { $owner.CommandLine.TrimEnd().TrimEnd('"').TrimEnd("'") } else { '' }
+        if ($owner.Name -eq 'node.exe' -and (
+            $cmdLine.EndsWith($daemonPath, [StringComparison]::OrdinalIgnoreCase) -or
+            $cmdLine -match '(?:^|[\\/])daemon\.mjs$'
+        )) {
+            Write-Host "正在重启后台服务 (PID $($listener.OwningProcess)) 以加载当前目录更新..."
             $stoppedDaemon = Stop-Process -Id $listener.OwningProcess -PassThru
             if (-not $stoppedDaemon.WaitForExit(3000)) { throw '后台服务未能退出。' }
         }

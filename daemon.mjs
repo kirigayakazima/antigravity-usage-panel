@@ -1,7 +1,8 @@
 import http from 'node:http';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { scanConversations } from './lib/conversations.js';
 import { HistoryStore } from './lib/history.js';
 import { estimateQuota, buildAccountTimeline } from './lib/quota-estimates.mjs';
@@ -16,15 +17,19 @@ import {
   mergeVaultStatus
 } from './lib/credential-vault.mjs';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const crashFile = join(__dirname, 'crash.txt');
+const pidFile = join(__dirname, 'pid.txt');
+
 process.on('uncaughtException', (err) => {
   try {
-    writeFileSync('d:/CodePackage/DSPlug/antigravity-usage-panel/crash.txt', `[${new Date().toISOString()}] Uncaught: ${err.stack || err.message}\n`, { flag: 'a' });
+    writeFileSync(crashFile, `[${new Date().toISOString()}] Uncaught: ${err.stack || err.message}\n`, { flag: 'a' });
   } catch (e) {}
 });
 
 process.on('unhandledRejection', (err) => {
   try {
-    writeFileSync('d:/CodePackage/DSPlug/antigravity-usage-panel/crash.txt', `[${new Date().toISOString()}] Rejection: ${err?.stack || err?.message || err}\n`, { flag: 'a' });
+    writeFileSync(crashFile, `[${new Date().toISOString()}] Rejection: ${err?.stack || err?.message || err}\n`, { flag: 'a' });
   } catch (e) {}
 });
 
@@ -591,7 +596,7 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/' || url.pathname === '/index.html') {
     try {
-      const filePath = join(process.cwd(), 'index.html');
+      const filePath = join(__dirname, 'index.html');
       const content = readFileSync(filePath, 'utf8');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(content);
@@ -604,7 +609,7 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === '/hud' || url.pathname === '/hud.html') {
     try {
-      const filePath = join(process.cwd(), 'hud.html');
+      const filePath = join(__dirname, 'hud.html');
       const content = readFileSync(filePath, 'utf8');
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(content);
@@ -621,7 +626,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, '127.0.0.1', () => {
   try {
-    writeFileSync('d:/CodePackage/DSPlug/antigravity-usage-panel/pid.txt', String(process.pid));
+    writeFileSync(pidFile, String(process.pid));
   } catch (e) {}
   console.log(`[Antigravity Quota Daemon] Running on http://127.0.0.1:${PORT}`);
   getQuota().then(q => {
